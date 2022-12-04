@@ -1,5 +1,8 @@
 import tensorflow as tf
 import numpy as np
+from tensorflow import keras
+import tensorflow_probability as tfp
+from tensorflow.keras.utils import plot_model
 
 def to_2tuple(x):
     return (x, x)
@@ -35,7 +38,8 @@ def window_partition(x, window_size=7):
     """
     
     B, H, W, C = x.shape
-    
+    B =tf.shape(x)[0]
+    #print("B: ",B)
     # Convert to (B, 8, 7, 8, 7, C) 
     # x = x.view(B, H // window_size, window_size, W // window_size, window_size, C)
     x = tf.reshape(x, [B, H // window_size, window_size, W // window_size, window_size, C])
@@ -64,7 +68,11 @@ def window_reverse(windows, window_size, H, W):
     """
     
     # Get B from 8*8*B
-    B = int(windows.shape[0] / (H * W / window_size / window_size))
+    #print((windows.shape[0]))
+    if windows.shape[0] is not None:
+    	B = int(windows.shape[0]/ (H * W / window_size / window_size))
+    else :
+    	B = tf.shape(windows)[0]
     
     # Convert to (B, 8, 8, 7, 7, C)
     # x = windows.view(B, H // window_size, W // window_size, window_size, window_size, -1)
@@ -170,6 +178,7 @@ class WindowAttention(tf.keras.layers.Layer):
         """
         # (batch, M^2, C)
         B_, N, C = x.shape
+        B_ = tf.shape(x)[0]
         # (num_windows*B, N, 3C)
         qkv = self.qkv(x)
     
@@ -201,7 +210,9 @@ class WindowAttention(tf.keras.layers.Layer):
         # Remember that relative_position_bias_table = ((2M-1)*(2M-1), num_heads), B_hat from the paper
         # relative_position_index's elements are in range [0, 2M-2]
         # Convert to (M^2, M^2, num_heads). This is B matrix from the paper
-        a = tf.reshape(self.relative_position_index, -1)
+        #print("Relative position index", self.relative_position_index.shape)
+        a = tf.reshape(self.relative_position_index, [-1])
+        #print("a: ",a.shape)
         b = tf.gather(self.relative_position_bias_table, a)
         a = tf.reshape(b, [self.window_size[0] * self.window_size[1], self.window_size[0] * self.window_size[1], -1])
         relative_position_bias = a
@@ -264,9 +275,10 @@ class SwinTransformerBlock(tf.keras.layers.Layer):
     
     def __init__(self, dim, input_resolution, num_heads, window_size=7, shift_size=0,
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0., drop_path=0.,
-                 act_layer=tf.keras.activations.gelu, norm_layer=tf.keras.layers.LayerNormalization
-                ):
-        super().__init__()
+                 act_layer=tf.keras.activations.gelu, norm_layer=tf.keras.layers.LayerNormalization,
+                 name=None):
+        super(SwinTransformerBlock,self).__init__(name=name)
+        self._name = name
         self.dim = dim
         self.input_resolution = input_resolution
         self.num_heads = num_heads
@@ -348,6 +360,7 @@ class SwinTransformerBlock(tf.keras.layers.Layer):
     def call(self, x):
         H, W = self.input_resolution
         B, L, C = x.shape
+        B = tf.shape(x)[0]
         assert L == H * W, "input feature has wrong size"
         
         shortcut = x # Residual
@@ -398,7 +411,7 @@ class PatchMerging(tf.keras.layers.Layer):
         super().__init__()
         self.input_resolution = input_resolution
         self.dim = dim
-        self.reduction = tf.keras.layers.Dense(2 * dim)
+        self.reduction = tf.keras.layers.Dense(2 * dim, use_bias=False)
         self.norm = norm_layer()
 
         
@@ -406,32 +419,31 @@ class PatchMerging(tf.keras.layers.Layer):
         """
         x: (B, H*W, C)
         """
-        
         H, W = self.input_resolution
         B, L, C = x.shape
+        B = tf.shape(x)[0]
         assert L == H * W, "input feature has wrong size"
         assert H % 2 == 0 and W % 2 == 0, f"x size ({H}*{W}) are not even."
         
         x = tf.reshape(x, [B, H, W, C])
         
         # Separate per patch by 2 x 2
-        t = x.numpy()
-        x0 = t[:, 0::2, 0::2, :] # (B, H/2, W/2, C) (top-left of 2x2)
-        x1 = t[:, 1::2, 0::2, :] # (B, H/2, W/2, C) (bottom-left of 2x2)
-        x2 = t[:, 0::2, 1::2, :] # (B, H/2, W/2, C) (top-right of 2x2)
-        x3 = t[:, 1::2, 1::2, :] # (B, H/2, W/2, C) (bottom-right of 2x2)
+        #t = x.numpy()
+        x0 = x[:, 0::2, 0::2, :] # (B, H/2, W/2, C) (top-left of 2x2)
+        x1 = x[:, 1::2, 0::2, :] # (B, H/2, W/2, C) (bottom-left of 2x2)
+        x2 = x[:, 0::2, 1::2, :] # (B, H/2, W/2, C) (top-right of 2x2)
+        x3 = x[:, 1::2, 1::2, :] # (B, H/2, W/2, C) (bottom-right of 2x2)
         
         # Merge by channel -> (B, H/2, W/2, 4C)
         x = tf.concat([x0, x1, x2, x3], -1)
-        
+
         # Flatten H, W
-        x = tf.reshape(x, [B, -1, 4 * C])
-        
+        x = tf.reshape(x, [B, tf.shape(x)[1]*tf.shape(x)[2], 4 * C])
         x = self.norm(x)
-        
+
         # Reduction Layer: 4C -> 2C
         x = self.reduction(x)
-        
+
         return x
 
 class BasicLayer(tf.keras.layers.Layer):
@@ -456,26 +468,29 @@ class BasicLayer(tf.keras.layers.Layer):
     
     def __init__(self, dim, input_resolution, depth, num_heads, window_size,
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., norm_layer=tf.keras.layers.LayerNormalization, downsample=None, use_checkpoint=False):
-        super().__init__()
+                 drop_path=0., norm_layer=tf.keras.layers.LayerNormalization, downsample=None, use_checkpoint=False, name=None):
+        super(BasicLayer,self).__init__(name=name)
+        self._name = name
         self.dim = dim
         self.input_resolution = input_resolution
         self.depth = depth
         self.use_checkpoint = use_checkpoint
         
         # Build  Swin-Transformer Blocks
-        self.blocks = tf.keras.Sequential([
-            SwinTransformerBlock(dim=dim, input_resolution=input_resolution,
+        self.blocks = []
+        for i in range(depth):
+        	self.blocks.append(            SwinTransformerBlock(dim=dim, input_resolution=input_resolution,
                                  num_heads=num_heads, window_size=window_size,
                                  shift_size=0 if (i % 2 == 0) else window_size // 2,
                                  mlp_ratio = mlp_ratio,
                                  qkv_bias=qkv_bias, qk_scale=qk_scale,
                                  drop=drop, attn_drop=attn_drop,
                                  drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
-                                 norm_layer=norm_layer
-                                )
-            for i in range(depth)
-        ])
+                                 norm_layer=norm_layer, name='SWinTransformer' + str(i)
+                                ))
+
+        self.blocks = tf.keras.Sequential(self.blocks)
+
         
         
         # Patch Merging Layer
@@ -490,8 +505,11 @@ class BasicLayer(tf.keras.layers.Layer):
         
         if self.downsample is not None:
             x = self.downsample(x)
-        
         return x
+
+
+
+
 
 class PatchEmbed(tf.keras.layers.Layer):
     """ Convert image to patch embedding
@@ -531,6 +549,7 @@ class PatchEmbed(tf.keras.layers.Layer):
         returns: (B, H//patch_size * W//patch_size, embed_dim) (B, 56*56, 96)
         """
         B, C, H, W = x.shape
+        B = tf.shape(x)[0]
         assert H == self.img_size[0] and W == self.img_size[1], \
             f"Input image size ({H}*{W}]) doesn't match model ({self.img_size[0]}*{self.img_size[1]})."
  
@@ -540,7 +559,7 @@ class PatchEmbed(tf.keras.layers.Layer):
         x = tf.transpose(x, perm=[0, 3, 2, 1])
 
         # (B, 96, 56, 56) -> (B, 96, 56*56)
-        x = tf.reshape(x, [x.shape[0], x.shape[1], x.shape[2]*x.shape[3]])
+        x = tf.reshape(x, [tf.shape(x)[0], x.shape[1], x.shape[2]*x.shape[3]])
 
         # (B, 96, 56*56) -> (B, 56*56, 96): 56 refers to the number of patches
         x = tf.transpose(x, perm=[0, 2, 1])
@@ -549,6 +568,8 @@ class PatchEmbed(tf.keras.layers.Layer):
             x = self.norm(x)
 
         return x
+
+   
 
 class SwinTransformer(tf.keras.layers.Layer):
     """ Swin Transformer
@@ -605,8 +626,10 @@ class SwinTransformer(tf.keras.layers.Layer):
         dpr = [x for x in np.linspace(0, drop_path_rate, sum(depths))] # stochastic depth decay rule
         
         # build layers
-        self.layers = tf.keras.Sequential(
-        [BasicLayer(
+        self.layers=[]
+
+        for i_layer in range(self.num_layers):
+        	self.layers.append(BasicLayer(
             dim=int(embed_dim * 2 ** i_layer),
             input_resolution=(
                 patches_resolution[0] // (2 ** i_layer), # After patch-merging layer, patches_resolution(H, W) is halved
@@ -621,8 +644,10 @@ class SwinTransformer(tf.keras.layers.Layer):
             drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],
             norm_layer=norm_layer,
             downsample=PatchMerging if (i_layer < self.num_layers -1) else None, # No patch merging at the last stage
-            use_checkpoint=use_checkpoint
-        ) for i_layer in range(self.num_layers)])
+            use_checkpoint=use_checkpoint, name='BasicLayer' + str(i_layer)
+            ))
+
+        self.layers = tf.keras.Sequential(self.layers)
             
         self.norm = norm_layer()
         self.avgpool = tf.keras.layers.GlobalAveragePooling1D(data_format="channels_first", keepdims=True)
@@ -638,25 +663,91 @@ class SwinTransformer(tf.keras.layers.Layer):
         x = self.layers(x)
 
         x = self.norm(x) # (B, L, C)
-        print("x", x.shape)
         t = tf.transpose(x, perm=[0, 2, 1])
-        print("t", t.shape)
         xavg = self.avgpool(t) # (B, C, 1)
-        print("xavg", xavg.shape)
         #x = torch.flatten(x, 1)
         return x, xavg
     
     def call(self, x):
         x, xavg = self.forward_features(x)
         return x, xavg
+
+    def summary(self, line_length=None, positions=None, print_fn=None):
+
+        encoder_input = keras.Input(shape=(3,224,224), name="original_img")
+
+        model = SwinTransformer()
+
+        encoder_output = model(encoder_input)
+        Swinmodel = keras.Model(encoder_input, encoder_output, name="SWinModel_Total")
+
+        print(Swinmodel.summary())
+
+    
+        encoder_output = self.patch_embed(encoder_input)
+        patchembed = keras.Model(encoder_input, encoder_output, name="patchembed")
+        #print(patchembed.summary())
+
+        posdrop_input = encoder_output
+
+        posdrop_output = self.pos_drop(posdrop_input)
+        posdrop = keras.Model(posdrop_input, posdrop_output, name="pos_drop")
+        #print(posdrop.summary())
+
+        merged_summary_str = tf.keras.Sequential()
+        merged_summary_str.add(patchembed)
+        merged_summary_str.add(posdrop)
+        #print(merged_summary_str.summary())
+
+        layer_input = posdrop_output
+
+
+        for j,layer in enumerate(self.layers.layers):
+            for i,SWINlayer in enumerate(layer.blocks.layers):
+                layer_output = SWINlayer(layer_input)
+                
+                layersmodel = keras.Model(layer_input, layer_output, name="BasicLayer_" + str(j) + "_SWINlayer_" + str(i))
+
+                #print(layersmodel.summary())
+                merged_summary_str.add(layersmodel)
+                layer_input = layer_output
+            if layer.downsample is not None:
+                    layer_output = layer.downsample(layer_input)
+                    downsamplemodel = keras.Model(layer_input, layer_output, name="downsample" + str(j))
+                    
+                    merged_summary_str.add(downsamplemodel)
+
+                    #print(downsamplemodel.summary())
+                    layer_input = layer_output
+        
+        norm_input = layer_output
+        norm_output = self.norm(norm_input)
+        norm_layer = keras.Model(norm_input,norm_output,name="Norm_Layer" )
+        merged_summary_str.add(norm_layer)
+        merged_summary_str._name = "SWinModel_Total_Verbose"
+        print(merged_summary_str.summary())
+
+        merged_summary_str = tf.keras.Model(merged_summary_str.input, merged_summary_str.output)
+        
+        plot_model(merged_summary_str,to_file='model.png',)
+
+
+
+
+        #SWinModel = keras.Model(encoder_input, output, name="encoder")
+
+        #print(SWinModel.summary())
+
+
+        #print(self.patch_embed.summary())
     
 if __name__ == '__main__':
 
-    import tensorflow as tf
-    import tensorflow_probability as tfp
+
 
     model = SwinTransformer()
-    dummy = np.random.rand(10, 3, 224, 224)
+    #dummy = np.random.rand(10, 3, 224, 224)
+    model.summary()
     
-    print(model(dummy)[0].shape)
-    print(model(dummy)[1].shape)
+    #print("output1: ", model(dummy)[0].shape)
+    #print("output2: ", model(dummy)[1].shape)

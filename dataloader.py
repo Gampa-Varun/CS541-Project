@@ -66,10 +66,10 @@ def remove_num(text, print_tf=False):
         return text_no_num
 
 # Test to load some images alongside its 5 corresponding captions
-images_dir = '/Users/rohin/Desktop/DL PROJECT/Dataset/Flicker8k_Dataset'
+images_dir = 'Dataset/Flicker8k_Dataset'
 images = listdir(images_dir)
 
-captions_dir = '/Users/rohin/Desktop/DL PROJECT/Dataset/Flickr8k_text/Flickr8k.token.txt'
+captions_dir = 'Dataset/Flickr8k_text/Flickr8k.token.txt'
 
 print("The number of jpg flies in Flicker8k: {}".format(len(images)))
 
@@ -168,6 +168,8 @@ def make_vocab(data):
 
 vocabulary = make_vocab(data)
 
+
+
 #Find the frequency of words in the dataset
 def word_count(data,vocabulary):
     count = Counter(vocabulary)
@@ -232,7 +234,7 @@ def load_image(image_path):
     image = preprocess_input(image)
     return image, image_path
 
-image1, image1_path = load_image("/Users/rohin/Desktop/DL PROJECT/Dataset/Flicker8k_Dataset/3439243433_d5f3508612.jpg")
+image1, image1_path = load_image("Dataset/Flicker8k_Dataset/3439243433_d5f3508612.jpg")
 print("Shape after resize :", image1.shape)
 plt.imshow(image1)
 
