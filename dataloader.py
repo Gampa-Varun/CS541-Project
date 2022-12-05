@@ -66,10 +66,10 @@ def remove_num(text, print_tf=False):
         return text_no_num
 
 # Test to load some images alongside its 5 corresponding captions
-images_dir = 'Dataset/Flicker8k_Dataset'
+images_dir = '/Users/rohin/Documents/CS541-Project-main/Dataset/Flicker8k_Dataset'
 images = listdir(images_dir)
 
-captions_dir = 'Dataset/Flickr8k_text/Flickr8k.token.txt'
+captions_dir = '/Users/rohin/Documents/CS541-Project-main/Dataset/Flickr8k_text/Flickr8k.token.txt'
 
 print("The number of jpg flies in Flicker8k: {}".format(len(images)))
 
@@ -95,7 +95,7 @@ data = pd.DataFrame(data_frame,columns=["filename","index","caption"])
 
 data = data.reindex(columns=['index','filename','caption'])
 
-print(data)
+#print(data)
 
 # If any filename dosn't have .jpg extension at last then mark it as Invalid filename
 def invalid_filename_check(data):
@@ -115,15 +115,15 @@ print(data.shape)
 
 def utility_counter(data):
     filenames_unique = np.unique(data.filename.values)
-    print("The number of unique filenames : {}".format(len(filenames_unique)))
+    #print("The number of unique filenames : {}".format(len(filenames_unique)))
 
     count_dict = Counter(data.filename.values)
-    print("Confirming that all the keys have count value as 5")
-    print(count_dict)
+    #print("Confirming that all the keys have count value as 5")
+    #print(count_dict)
 
     print("The number of captions per image")
     count = Counter(Counter(data.filename.values).values())
-    print(count)
+    #print(count)
     return filenames_unique
 
 unique_filenames = utility_counter(data)
@@ -168,8 +168,6 @@ def make_vocab(data):
 
 vocabulary = make_vocab(data)
 
-
-
 #Find the frequency of words in the dataset
 def word_count(data,vocabulary):
     count = Counter(vocabulary)
@@ -211,7 +209,7 @@ def image_preprocessor(data):
     return vector_all_images
 
 vector_all_images = image_preprocessor(data)
-print(vector_all_images[:10])
+#print(vector_all_images[:10])
 
 def caption_preprocessor(data):
     final_captions = []
@@ -234,7 +232,7 @@ def load_image(image_path):
     image = preprocess_input(image)
     return image, image_path
 
-image1, image1_path = load_image("Dataset/Flicker8k_Dataset/3439243433_d5f3508612.jpg")
+image1, image1_path = load_image("/Users/rohin/Documents/CS541-Project-main/Dataset/Flicker8k_Dataset/3439243433_d5f3508612.jpg")
 print("Shape after resize :", image1.shape)
 plt.imshow(image1)
 
@@ -254,9 +252,9 @@ print("Total Captions = {0} , Total images = {1}".format(len(train_captions),len
 
 encoder_train = sorted(set(vector_all_images))
 image_dataset = tf.data.Dataset.from_tensor_slices(encoder_train)
-image_dataset = image_dataset.map(load_image, num_parallel_calls=tf.data.experimental.AUTOTUNE).batch(64)
+image_dataset = image_dataset.map(load_image).batch(1)
 
-print(image_dataset)
+#print(image_dataset)
 
 def tokenize_caption(top_k,train_captions):
   # Choose the top 5000 words from the vocabulary
@@ -311,7 +309,7 @@ print("Training Data : X = {0},Y = {1}".format(len(img_name_train), len(caption_
 print("Test Data : X = {0},Y = {1}".format(len(img_name_test), len(caption_test)))
 
 #Convert the whole dataset into .npy format
-batch_size = 64
+batch_size = 1
 buffer_size = 1000
 
 def load_npy(img_name, cap):
@@ -322,14 +320,40 @@ def create_dataset(img_name_train,caption_train):
   dataset = tf.data.Dataset.from_tensor_slices((img_name_train, caption_train))
 
   # Use map to load the numpy files in parallel
-  dataset = dataset.map(lambda item1, item2: tf.numpy_function(load_npy, [item1, item2], [tf.float32, tf.int32]),num_parallel_calls=tf.data.experimental.AUTOTUNE)
+  dataset = dataset.map(lambda item1, item2: tf.numpy_function(load_npy, [item1, item2], [tf.float32, tf.int32]))
 
   # Shuffle and batch
   dataset = dataset.shuffle(buffer_size).batch(batch_size).prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
   return dataset
 
+
+modelvgg = tf.keras.applications.VGG16(include_top=True,weights=None) # for observation on shapes
+
+
+image_model = tf.keras.applications.VGG16(include_top=False,weights='imagenet')
+new_input = image_model.input # Any arbitrary shapes with 3 channels
+hidden_layer = image_model.layers[-1].output
+
+image_features_extract_model = tf.keras.Model(new_input, hidden_layer)
+
+from tqdm import tqdm
+
+for img, path in tqdm(image_dataset):
+
+  batch_features = image_features_extract_model(img)
+  batch_features = tf.reshape(batch_features,(batch_features.shape[0], -1, batch_features.shape[3]))
+  for bf, p in zip(batch_features, path):
+    path_of_feature = p.numpy().decode("utf-8")
+    np.save(path_of_feature, bf.numpy())
+
+np_img =np.load('/Users/rohin/Documents/CS541-Project-main/Dataset/Flicker8k_Dataset/3338291921_fe7ae0c8f8.jpg.npy')
+
+print(np_img)
+print("Shape : {}".format(np_img.shape))
+
 # Creating train and test dataset
 train_dataset = create_dataset(img_name_train,caption_train)
 test_dataset = create_dataset(img_name_test,caption_test)
 
-
+for (step, (train_batchX, train_batchY)) in enumerate(test_dataset):
+  pass
