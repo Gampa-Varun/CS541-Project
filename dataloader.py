@@ -321,20 +321,20 @@ print("Training Data : X = {0},Y = {1}".format(len(img_name_train), len(caption_
 print("Test Data : X = {0},Y = {1}".format(len(img_name_test), len(caption_test)))
 
 #Convert the whole dataset into .npy format
-batch_size = 8
-buffer_size = 1000
+batch_size = 1
+buffer_size = 10
 
 from tqdm import tqdm
 
-# for img, path in tqdm(image_dataset):
+#for img, path in tqdm(image_dataset):
 
-#   batch_features = img
-#   batch_features = tf.transpose(batch_features, perm=[0, 3, 1, 2])
-#   # batch_features = tf.reshape(batch_features,(batch_features.shape[0], -1, batch_features.shape[3]))
-#   # print("BF Shape", batch_features.shape)
-#   for bf, p in zip(batch_features, path):
-#     path_of_feature = p.numpy().decode("utf-8")
-#     np.save(path_of_feature, bf.numpy())
+  # batch_features = img
+  # batch_features = tf.transpose(batch_features, perm=[0, 3, 1, 2])
+   # batch_features = tf.reshape(batch_features,(batch_features.shape[0], -1, batch_features.shape[3]))
+   # print("BF Shape", batch_features.shape)
+  # for bf, p in zip(batch_features, path):
+   # path_of_feature = p.numpy().decode("utf-8")
+  #  np.save(path_of_feature, bf.numpy())
 
 def load_npy(img_name, cap):
   img_tensor = np.load(img_name.decode('utf-8')+'.npy')
@@ -366,7 +366,7 @@ n = 6  # Number of layers in the encoder stack
  
 # Define the training parameters
 epochs = 10
-batch_size = 64
+batch_size = 1
 beta_1 = 0.9
 beta_2 = 0.98
 epsilon = 1e-5
@@ -394,7 +394,7 @@ class LRScheduler(LearningRateSchedule):
  
  
 # Instantiate an Adam optimizer
-optimizer = Adam(LRScheduler(d_model), beta_1, beta_2, epsilon)
+optimizer = Adam(0.001, beta_1, beta_2, epsilon)
  
 # Create model
 dec_vocab_size = 8918
@@ -424,7 +424,6 @@ def accuracy_fcn(target, prediction):
     padding_mask = math.logical_not(equal(target, 0))
  
     # Find equal prediction and target values, and apply the padding mask
-    print(target.dtype)
     maxpred = cast(argmax(prediction, axis=2),int32)
     accuracy = equal(target, maxpred)
     accuracy = math.logical_and(padding_mask, accuracy)
