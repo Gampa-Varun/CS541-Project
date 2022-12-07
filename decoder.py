@@ -27,6 +27,8 @@ class DecoderLayer(Layer):
         vg = cast(repeat(global_feature,sequence_length-1,axis=1),float32)
         x = self.prefuse(x,vg)
 
+        print("prefused shape: ", x.shape)
+
         multihead_output1 = self.multihead_attention1(x, x, x, lookahead_mask)
         # Expected output shape = (batch_size, sequence_length, d_model)
  

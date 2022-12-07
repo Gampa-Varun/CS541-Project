@@ -52,6 +52,8 @@ class MultiHeadAttention(Layer):
         #check = self.W_q(queries)
         #print(f" projection shape: {check.shape}")
         q_reshaped = self.reshape_tensor(self.W_q(queries), self.heads, True)
+        print("q shape: ", q_reshaped.shape)
+        #print("mask: ", mask.shape)
         #print(f" reshaped shape: {q_reshaped.shape}")
         # Resulting tensor shape: (batch_size, heads, input_seq_length, -1)
  
