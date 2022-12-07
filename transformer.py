@@ -37,7 +37,7 @@ class TransformerModel(Model):
     def call(self, encoder_input, decoder_input, training):
  
         # Create padding mask to mask the encoder inputs and the encoder outputs in the decoder
-        enc_padding_mask = self.padding_mask(encoder_input)
+        # enc_padding_mask = self.padding_mask(encoder_input)
  
         # Create and combine padding and look-ahead masks to be fed into the decoder
         dec_in_padding_mask = self.padding_mask(decoder_input)

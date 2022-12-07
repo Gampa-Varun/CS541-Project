@@ -33,6 +33,21 @@ from keras.applications.vgg16 import VGG16, preprocess_input
 
 from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
+from encoder import Encoder
+from decoder import Decoder
+from tensorflow import math, cast, float32, linalg, ones, maximum, newaxis
+from tensorflow.keras import Model
+from tensorflow.keras.layers import Dense
+from SWINblock import SwinTransformer
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.optimizers.schedules import LearningRateSchedule
+from tensorflow.keras.metrics import Mean
+from tensorflow import data, train, math, reduce_sum, cast, equal, argmax, float32, GradientTape, TensorSpec, function, int64
+from keras.losses import sparse_categorical_crossentropy
+from transformer import TransformerModel
+from time import *
+from tensorflow import cast, int32, float32
+import tensorflow as tf
 
 # Load file into memory
 def load_dataset(filename):
@@ -66,15 +81,14 @@ def remove_num(text, print_tf=False):
         return text_no_num
 
 # Test to load some images alongside its 5 corresponding captions
-images_dir = '/Users/rohin/Documents/CS541-Project-main/Dataset/Flicker8k_Dataset'
+images_dir = 'Dataset/Flicker8k_Dataset'
 images = listdir(images_dir)
 
-captions_dir = '/Users/rohin/Documents/CS541-Project-main/Dataset/Flickr8k_text/Flickr8k.token.txt'
+captions_dir = 'Dataset/Flickr8k_text/Flickr8k.token.txt'
 
 print("The number of jpg flies in Flicker8k: {}".format(len(images)))
 
 text = load_dataset(captions_dir)
-print(text[:410])
 
 #Make a dataframe out of raw text
 def build_dataset(text):
@@ -88,8 +102,8 @@ def build_dataset(text):
     return data_frame  
       
 data_frame = build_dataset(text)
-print(len(data_frame))
-print(data_frame[:10])
+# print(len(data_frame))
+# print(data_frame[:10])
 
 data = pd.DataFrame(data_frame,columns=["filename","index","caption"])
 
@@ -115,15 +129,15 @@ print(data.shape)
 
 def utility_counter(data):
     filenames_unique = np.unique(data.filename.values)
-    #print("The number of unique filenames : {}".format(len(filenames_unique)))
+    print("The number of unique filenames : {}".format(len(filenames_unique)))
 
     count_dict = Counter(data.filename.values)
-    #print("Confirming that all the keys have count value as 5")
-    #print(count_dict)
+    # print("Confirming that all the keys have count value as 5")
+    # print(count_dict)
 
     print("The number of captions per image")
     count = Counter(Counter(data.filename.values).values())
-    #print(count)
+    print(count)
     return filenames_unique
 
 unique_filenames = utility_counter(data)
@@ -132,7 +146,7 @@ unique_filenames = utility_counter(data)
 #Insert reference url here
 def data_show(data):
     pic_count = 5
-    pixels_count = 224
+    pixels_count = 384
     target_size = (pixels_count,pixels_count,3)
 
     count = 1
@@ -228,13 +242,11 @@ print(final_captions[:10])
 def load_image(image_path):
     image = tf.io.read_file(image_path)
     image = tf.image.decode_jpeg(image, channels=3)
-    image = tf.image.resize(image,(224,224))
+    image = tf.image.resize(image,(384,384))
+    image = tf.image.per_image_standardization(image)
     image = preprocess_input(image)
+    print("sdfdsf", image)
     return image, image_path
-
-image1, image1_path = load_image("/Users/rohin/Documents/CS541-Project-main/Dataset/Flicker8k_Dataset/3439243433_d5f3508612.jpg")
-print("Shape after resize :", image1.shape)
-plt.imshow(image1)
 
 print("Total Images : " + str(len(vector_all_images)))
 print("Total Captions : " + str(len(final_captions)))
@@ -254,7 +266,7 @@ encoder_train = sorted(set(vector_all_images))
 image_dataset = tf.data.Dataset.from_tensor_slices(encoder_train)
 image_dataset = image_dataset.map(load_image).batch(1)
 
-#print(image_dataset)
+print("Image", image_dataset)
 
 def tokenize_caption(top_k,train_captions):
   # Choose the top 5000 words from the vocabulary
@@ -309,51 +321,202 @@ print("Training Data : X = {0},Y = {1}".format(len(img_name_train), len(caption_
 print("Test Data : X = {0},Y = {1}".format(len(img_name_test), len(caption_test)))
 
 #Convert the whole dataset into .npy format
-batch_size = 1
+batch_size = 8
 buffer_size = 1000
+
+from tqdm import tqdm
+
+# for img, path in tqdm(image_dataset):
+
+#   batch_features = img
+#   batch_features = tf.transpose(batch_features, perm=[0, 3, 1, 2])
+#   # batch_features = tf.reshape(batch_features,(batch_features.shape[0], -1, batch_features.shape[3]))
+#   # print("BF Shape", batch_features.shape)
+#   for bf, p in zip(batch_features, path):
+#     path_of_feature = p.numpy().decode("utf-8")
+#     np.save(path_of_feature, bf.numpy())
 
 def load_npy(img_name, cap):
   img_tensor = np.load(img_name.decode('utf-8')+'.npy')
+  # print("Image Tensor", tf.shape(img_tensor))
   return img_tensor, cap
 
 def create_dataset(img_name_train,caption_train):
   dataset = tf.data.Dataset.from_tensor_slices((img_name_train, caption_train))
-
+  print(dataset)
   # Use map to load the numpy files in parallel
   dataset = dataset.map(lambda item1, item2: tf.numpy_function(load_npy, [item1, item2], [tf.float32, tf.int32]))
 
   # Shuffle and batch
   dataset = dataset.shuffle(buffer_size).batch(batch_size).prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+  print(dataset)
   return dataset
-
-
-modelvgg = tf.keras.applications.VGG16(include_top=True,weights=None) # for observation on shapes
-
-
-image_model = tf.keras.applications.VGG16(include_top=False,weights='imagenet')
-new_input = image_model.input # Any arbitrary shapes with 3 channels
-hidden_layer = image_model.layers[-1].output
-
-image_features_extract_model = tf.keras.Model(new_input, hidden_layer)
-
-from tqdm import tqdm
-
-for img, path in tqdm(image_dataset):
-
-  batch_features = image_features_extract_model(img)
-  batch_features = tf.reshape(batch_features,(batch_features.shape[0], -1, batch_features.shape[3]))
-  for bf, p in zip(batch_features, path):
-    path_of_feature = p.numpy().decode("utf-8")
-    np.save(path_of_feature, bf.numpy())
-
-np_img =np.load('/Users/rohin/Documents/CS541-Project-main/Dataset/Flicker8k_Dataset/3338291921_fe7ae0c8f8.jpg.npy')
-
-print(np_img)
-print("Shape : {}".format(np_img.shape))
 
 # Creating train and test dataset
 train_dataset = create_dataset(img_name_train,caption_train)
 test_dataset = create_dataset(img_name_test,caption_test)
 
-for (step, (train_batchX, train_batchY)) in enumerate(test_dataset):
-  pass
+# Define the model parameters
+h = 8  # Number of self-attention heads
+d_k = 64  # Dimensionality of the linearly projected queries and keys
+d_v = 64  # Dimensionality of the linearly projected values
+d_model = 512  # Dimensionality of model layers' outputs
+d_ff = 2048  # Dimensionality of the inner fully connected layer
+n = 6  # Number of layers in the encoder stack
+ 
+# Define the training parameters
+epochs = 10
+batch_size = 64
+beta_1 = 0.9
+beta_2 = 0.98
+epsilon = 1e-5
+dropout_rate = 0.1
+ 
+
+from numpy import random
+
+ 
+# Implementing a learning rate scheduler
+class LRScheduler(LearningRateSchedule):
+    def __init__(self, d_model, warmup_steps=4000, **kwargs):
+        super(LRScheduler, self).__init__(**kwargs)
+ 
+        self.d_model = cast(d_model, float32)
+        self.warmup_steps = warmup_steps
+ 
+    def __call__(self, step_num):
+ 
+        # Linearly increasing the learning rate for the first warmup_steps, and decreasing it thereafter
+        arg1 = step_num ** -0.5
+        arg2 = step_num * (self.warmup_steps ** -1.5)
+ 
+        return (self.d_model ** -0.5) * math.minimum(arg1, arg2)
+ 
+ 
+# Instantiate an Adam optimizer
+optimizer = Adam(LRScheduler(d_model), beta_1, beta_2, epsilon)
+ 
+# Create model
+dec_vocab_size = 8918
+dec_seq_length = 38
+enc_vocab_size = 8918
+enc_seq_length = 38
+
+training_model = TransformerModel(dec_vocab_size, dec_seq_length, h, d_k, d_v, d_model, d_ff, n, dropout_rate)
+ 
+ 
+# Defining the loss function
+def loss_fcn(target, prediction):
+    # Create mask so that the zero padding values are not included in the computation of loss
+    padding_mask = math.logical_not(equal(target, 0))
+    padding_mask = cast(padding_mask, float32)
+ 
+    # Compute a sparse categorical cross-entropy loss on the unmasked values
+    loss = sparse_categorical_crossentropy(target, prediction, from_logits=True) * padding_mask
+ 
+    # Compute the mean loss over the unmasked values
+    return reduce_sum(loss) / reduce_sum(padding_mask)
+ 
+ 
+# Defining the accuracy function
+def accuracy_fcn(target, prediction):
+    # Create mask so that the zero padding values are not included in the computation of accuracy
+    padding_mask = math.logical_not(equal(target, 0))
+ 
+    # Find equal prediction and target values, and apply the padding mask
+    print(target.dtype)
+    maxpred = cast(argmax(prediction, axis=2),int32)
+    accuracy = equal(target, maxpred)
+    accuracy = math.logical_and(padding_mask, accuracy)
+ 
+    # Cast the True/False values to 32-bit-precision floating-point numbers
+    padding_mask = cast(padding_mask, float32)
+    accuracy = cast(accuracy, float32)
+ 
+    # Compute the mean accuracy over the unmasked values
+    return reduce_sum(accuracy) / reduce_sum(padding_mask)
+ 
+ 
+# Include metrics monitoring
+train_loss = Mean(name='train_loss')
+train_accuracy = Mean(name='train_accuracy')
+ 
+# Create a checkpoint object and manager to manage multiple checkpoints
+ckpt = train.Checkpoint(model=training_model, optimizer=optimizer)
+ckpt_manager = train.CheckpointManager(ckpt, "./checkpoints", max_to_keep=3)
+ 
+# Speeding up the training process
+# @function
+def train_step(encoder_input, decoder_input, decoder_output):
+    with GradientTape() as tape:
+ 
+        # Run the forward pass of the model to generate a prediction
+        prediction = training_model(encoder_input, decoder_input, training=True)
+        print(prediction.shape)
+ 
+        # Compute the training loss
+        loss = loss_fcn(decoder_output, prediction)
+        print("\n\n\n\n\nLoss\n\n\n\n\n", loss)
+        # Compute the training accuracy
+        accuracy = accuracy_fcn(decoder_output, prediction)
+ 
+    # Retrieve gradients of the trainable variables with respect to the training loss
+    gradients = tape.gradient(loss, training_model.trainable_weights)
+ 
+    # Update the values of the trainable variables by gradient descent
+    optimizer.apply_gradients(zip(gradients, training_model.trainable_weights))
+ 
+    train_loss(loss)
+    train_accuracy(accuracy)
+ 
+ 
+for epoch in range(epochs):
+ 
+    train_loss.reset_states()
+    train_accuracy.reset_states()
+ 
+    print("\nStart of epoch %d" % (epoch + 1))
+ 
+
+ 
+    # Iterate over the dataset batches
+    for (step, (train_batchX, train_batchY)) in enumerate(train_dataset):
+
+        # print(step, train_batchX.shape, train_batchY.shape)
+        train_batchX = tf.divide(train_batchX, 255.0)
+        # print("Train Batch XXXXXXXXX", train_batchX)
+        encoder_input = train_batchX
+ 
+        # Define the encoder and decoder inputs, and the decoder output
+        #encoder_input = train_batchX[:, 1:]
+        # train_batchY = cast(tf.convert_to_tensor((random.random([64,38])),int32),dtype=int32)
+        decoder_input = cast(train_batchY[:, :-1], int32)
+        # print(f" decoder input shape: {decoder_input.shape}")
+        # encoder_input = cast(tf.convert_to_tensor((random.random([64,3,384,384])),float32),dtype=float32)
+        decoder_output = cast(train_batchY[:, 1:], int32)
+
+        
+        
+
+
+ 
+        train_step(encoder_input, decoder_input, decoder_output)
+ 
+        if step % 50 == 0:
+            print(f'Epoch {epoch + 1} Step {step} Loss {train_loss.result():.4f} Accuracy {train_accuracy.result():.4f}')
+            # print("Samples so far: %s" % ((step + 1) * batch_size))
+ 
+    # Print epoch number and loss value at the end of every epoch
+    print("Epoch %d: Training Loss %.4f, Training Accuracy %.4f" % (epoch + 1, train_loss.result(), train_accuracy.result()))
+ 
+    # Save a checkpoint after every five epochs
+    if (epoch + 1) % 5 == 0:
+        save_path = ckpt_manager.save()
+        print("Saved checkpoint at epoch %d" % (epoch + 1))
+ 
+print("Total time taken: %.2fs" % (time() - start_time))
+
+for (step, (train_batchX, train_batchY)) in enumerate(train_dataset):
+
+  print(step, train_batchX.shape, train_batchY.shape)
+  break

@@ -255,6 +255,7 @@ class WindowAttention(tf.keras.layers.Layer):
         # x = (B_, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
+        print("XXXXXXX", x[0][0][0])
         return x        
 
 
@@ -291,7 +292,7 @@ class WindowAttention2(tf.keras.layers.Layer):
         coords = tf.stack(tf.meshgrid(coords_h, coords_w)) # (2, M, M) or (2, Wh, Ww)
 
         coords_flatten = tf.reshape(coords, [2, window_size[0]*window_size[1]]) # (2, M^2)
-        global_coord = tf.constant([[6],[6]])
+        global_coord = tf.constant([[0],[0]])
 
 
         coords_flatten1 = tf.concat([coords_flatten,global_coord],axis=1)
@@ -1263,10 +1264,10 @@ if __name__ == '__main__':
     dummy = np.random.rand(10, 3, 384, 384)
     model = SwinTransformer()
 
-    model.summary()
+    # model.summary()
 
-    #output = model(dummy)
-    #print(output[0].shape)
+    output = model(dummy)
+    print(output[0].shape)
     #print(output[1].shape)
 
  
