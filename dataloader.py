@@ -352,6 +352,47 @@ def create_dataset(img_name_train,caption_train):
   print(dataset)
   return dataset
 
+def ddd(img_dir, cap_dir):
+	images = listdir(images_dir)
+	text = load_dataset(captions_dir)
+	data_frame = build_dataset(text)
+
+	data[data['filename'] == "2258277193_586949ec62.jpg.1"]
+	data = data[data['filename'] != '2258277193_586949ec62.jpg.1']
+	unique_filenames = utility_counter(data)
+
+	vocabulary = make_vocab(data)
+
+	df_word_count = word_count(data,vocabulary)
+
+	vector_all_images = image_preprocessor(data)
+
+	final_captions = caption_preprocessor(data)
+
+	train_captions,img_name_vector = data_limiter(40000,final_captions,vector_all_images)
+
+	encoder_train = sorted(set(vector_all_images))
+	image_dataset = tf.data.Dataset.from_tensor_slices(encoder_train)
+	image_dataset = image_dataset.map(load_image).batch(1)
+
+	train_seqs , tokenizer = tokenize_caption(5000,train_captions)
+
+	tokenizer.oov_token
+
+	max_length = calc_max_length(train_seqs)
+
+	min_length = calc_min_length(train_seqs)
+
+	img_name_train, img_name_test, caption_train, caption_test = train_test_split(img_name_vector,padded_caption_vector,test_size=0.2,random_state=0)
+	print("Training Data : X = {0},Y = {1}".format(len(img_name_train), len(caption_train)))
+	print("Test Data : X = {0},Y = {1}".format(len(img_name_test), len(caption_test)))
+	
+	train_dataset = create_dataset(img_name_train,caption_train)
+	test_dataset = create_dataset(img_name_test,caption_test)
+
+	return train_dataset, test_dataset
+
+
 # Creating train and test dataset
 train_dataset = create_dataset(img_name_train,caption_train)
 test_dataset = create_dataset(img_name_test,caption_test)
@@ -445,7 +486,7 @@ ckpt = train.Checkpoint(model=training_model, optimizer=optimizer)
 ckpt_manager = train.CheckpointManager(ckpt, "./checkpoints", max_to_keep=3)
  
 # Speeding up the training process
-# @function
+@function
 def train_step(encoder_input, decoder_input, decoder_output):
     with GradientTape() as tape:
  
@@ -455,7 +496,7 @@ def train_step(encoder_input, decoder_input, decoder_output):
  
         # Compute the training loss
         loss = loss_fcn(decoder_output, prediction)
-        print("\n\n\n\n\nLoss\n\n\n\n\n", loss)
+        # print("\nLoss\n", loss)
         # Compute the training accuracy
         accuracy = accuracy_fcn(decoder_output, prediction)
  
@@ -475,8 +516,6 @@ for epoch in range(epochs):
     train_accuracy.reset_states()
  
     print("\nStart of epoch %d" % (epoch + 1))
- 
-
  
     # Iterate over the dataset batches
     for (step, (train_batchX, train_batchY)) in enumerate(train_dataset):
