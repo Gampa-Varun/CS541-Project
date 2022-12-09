@@ -461,7 +461,7 @@ training_model = TransformerModel(dec_vocab_size, dec_seq_length, h, d_k, d_v, d
  
  
 # Defining the loss function
-@function
+#@function
 def loss_fcn(target, prediction):
     # Create mask so that the zero padding values are not included in the computation of loss
     padding_mask = math.logical_not(equal(target, 0))
@@ -475,7 +475,7 @@ def loss_fcn(target, prediction):
  
  
 # Defining the accuracy function
-@function
+#@function
 def accuracy_fcn(target, prediction):
     # Create mask so that the zero padding values are not included in the computation of accuracy
     padding_mask = math.logical_not(equal(target, 0))
@@ -502,7 +502,7 @@ ckpt = train.Checkpoint(model=training_model, optimizer=optimizer)
 ckpt_manager = train.CheckpointManager(ckpt, "./checkpoints", max_to_keep=3)
  
 # Speeding up the training process
-@function
+#@function
 def train_step(encoder_input, decoder_input, decoder_output):
     with GradientTape() as tape:
  

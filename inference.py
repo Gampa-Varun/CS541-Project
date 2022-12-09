@@ -59,17 +59,18 @@ class Translate(Module):
  
         # Prepare the output <START> token by tokenizing, and converting to tensor
         output_start = dec_tokenizer.texts_to_sequences(["<start>"])
-        output_start = convert_to_tensor(output_start[0], dtype=int64)
+        output_start = convert_to_tensor(output_start[0], dtype=tf.int32)
  
         # Prepare the output <EOS> token by tokenizing, and converting to tensor
         output_end = dec_tokenizer.texts_to_sequences(["<end>"])
-        output_end = convert_to_tensor(output_end[0], dtype=int64)
+        output_end = convert_to_tensor(output_end[0], dtype=tf.int32)
  
         # Prepare the output array of dynamic size
         decoder_output = TensorArray(dtype=int64, size=0, dynamic_size=True)
-        decoder_input = tf.Variable(tf.zeros(38))
+        decoder_input = tf.Variable(tf.zeros( (38),dtype=tf.int32 ), name="decoder_input")
         #decoder_output = decoder_output.write(0, output_start)
-        decoder_input[0] = output_start
+        decoder_input = decoder_input[0].assign(output_start)
+        decoder_input = tf.expand_dims(decoder_input, axis=0)
         for i in range(dec_seq_length):
  
             # Predict an output token
@@ -78,6 +79,7 @@ class Translate(Module):
             #padded_caption_vector = self.padding_train_sequences(decoder_output,38,'post')
             #print("caption vector: ", padded_caption_vector) 
             prediction = self.transformer(sentence, decoder_input, training=False)
+            print("prediction shape: ", prediction.shape)
  
             prediction = prediction[:, -1, :]
  
@@ -117,6 +119,9 @@ image_path = 'Dataset/Flicker8k_Dataset/3637013_c675de7705.jpg'
 
 image, image_path = load_image(image_path) 
 # Create a new instance of the 'Translate' class
+image = tf.expand_dims(image,axis=0)
+image = tf.cast(image,tf.float32)
+image = tf.transpose(image,perm=[0,3,1,2])
 translator = Translate(inferencing_model)
  
 # Translate the input sentence

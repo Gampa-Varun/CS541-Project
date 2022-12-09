@@ -3,3 +3,6 @@ Dataset/
 *.zip
 __MACOSX/
 .png
+__pycache__/
+weights/
+saved_model/
