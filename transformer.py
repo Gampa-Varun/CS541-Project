@@ -47,8 +47,8 @@ class TransformerModel(Model):
         # Feed the input into the encoder
         encoder_output, encoder_output_global = self.encoder(encoder_input)
  
-        print(f"Encoder shape: ", encoder_output.shape)
-        print(f"encoder global feature: ", encoder_output_global.shape)
+        #print(f"Encoder shape: ", encoder_output.shape)
+        #print(f"encoder global feature: ", encoder_output_global.shape)
         # Feed the encoder output into the decoder
         decoder_output = self.decoder(decoder_input, encoder_output, dec_in_lookahead_mask, None, encoder_output_global, training)
  

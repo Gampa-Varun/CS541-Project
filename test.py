@@ -107,7 +107,7 @@ ckpt = train.Checkpoint(model=training_model, optimizer=optimizer)
 ckpt_manager = train.CheckpointManager(ckpt, "./checkpoints", max_to_keep=3)
  
 # Speeding up the training process
-@function
+#@function
 def train_step(encoder_input, decoder_input, decoder_output):
     with GradientTape() as tape:
  
@@ -116,16 +116,16 @@ def train_step(encoder_input, decoder_input, decoder_output):
         print(prediction.shape)
  
         # Compute the training loss
-        #loss = loss_fcn(decoder_output, prediction)
+        loss = loss_fcn(decoder_output, prediction)
  
         # Compute the training accuracy
         #accuracy = accuracy_fcn(decoder_output, prediction)
  
     # Retrieve gradients of the trainable variables with respect to the training loss
-    #gradients = tape.gradient(loss, training_model.trainable_weights)
+    gradients = tape.gradient(loss, training_model.trainable_weights)
  
     # Update the values of the trainable variables by gradient descent
-    #optimizer.apply_gradients(zip(gradients, training_model.trainable_weights))
+    optimizer.apply_gradients(zip(gradients, training_model.trainable_weights))
  
     #train_loss(loss)
     #train_accuracy(accuracy)
@@ -145,10 +145,10 @@ for epoch in range(epochs):
  
         # Define the encoder and decoder inputs, and the decoder output
         #encoder_input = train_batchX[:, 1:]
-        train_batchY = cast(tf.convert_to_tensor((random.random([64,38])),int32),dtype=int32)
+        train_batchY = cast(tf.convert_to_tensor((random.random([1,38])),int32),dtype=int32)
         decoder_input = cast(train_batchY[:, :-1],int32)
         print(f" decoder input shape: {decoder_input.shape}")
-        encoder_input = cast(tf.convert_to_tensor((random.random([64,3,384,384])),float32),dtype=float32)
+        encoder_input = cast(tf.convert_to_tensor((random.random([1,3,384,384])),float32),dtype=float32)
         decoder_output = cast(train_batchY[:, 1:],int32)
 
         
@@ -158,8 +158,8 @@ for epoch in range(epochs):
  
         train_step(encoder_input, decoder_input, decoder_output)
  
-        if step % 50 == 0:
-            print(f'Epoch {epoch + 1} Step {step} Loss {train_loss.result():.4f} Accuracy {train_accuracy.result():.4f}')
+        #if step % 50 == 0:
+           # print(f'Epoch {epoch + 1} Step {step} Loss {train_loss.result():.4f} Accuracy {train_accuracy.result():.4f}')
             # print("Samples so far: %s" % ((step + 1) * batch_size))
  
     # Print epoch number and loss value at the end of every epoch
@@ -170,4 +170,4 @@ for epoch in range(epochs):
         save_path = ckpt_manager.save()
         print("Saved checkpoint at epoch %d" % (epoch + 1))
  
-print("Total time taken: %.2fs" % (time() - start_time))
+#print("Total time taken: %.2fs" % (time() - start_time))

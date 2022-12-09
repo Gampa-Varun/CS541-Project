@@ -256,7 +256,8 @@ class WindowAttention(tf.keras.layers.Layer):
         # Projection Matrix (W_0). dim doesn't change since we used C // num_heads for MSA
         # x = (B_, N, C)
         x = self.proj(x)
-        print("weights: ", self.proj.weights[0][0][0]) ##len(self.proj.weights), len(self.proj.weights[0]), len(self.proj.weights[0][0]))
+        #check = np.asarray(self.proj.weights)
+        #print("weights: ", self.proj.weights[0][0][0]) ##len(self.proj.weights), len(self.proj.weights[0]), len(self.proj.weights[0][0]))
         x = self.proj_drop(x)
         #print("XXXXXXX", x[0][0][0])
         return x        

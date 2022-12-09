@@ -19,22 +19,23 @@ if __name__ == '__main__':
     
     # Define the training parameters
     epochs = 10
-    batch_size = 1
+    batch_size = 2
     beta_1 = 0.9
     beta_2 = 0.98
     epsilon = 1e-5
     dropout_rate = 0.1
 
     # Instantiate an Adam optimizer
-    optimizer = Adam(0.001, beta_1, beta_2, epsilon)
+    optimizer = Adam(LRScheduler(d_model), beta_1, beta_2, epsilon)
     
     # Create model
     dec_vocab_size = 8918
-    dec_seq_length = 38
+    dec_seq_length = 39
     enc_vocab_size = 8918
-    enc_seq_length = 38
+    enc_seq_length = 39
 
     training_model = TransformerModel(dec_vocab_size, dec_seq_length, h, d_k, d_v, d_model, d_ff, n, dropout_rate)
+    
 
     # Include metrics monitoring
     train_loss = Mean(name='train_loss')
@@ -54,7 +55,7 @@ if __name__ == '__main__':
         print("\nStart of epoch %d" % (epoch + 1))
 
         # Iterate over the dataset batches
-        for (step, (train_batchX, train_batchY)) in enumerate(train_dataset):
+        for (step, (train_batchX, train_batchY)) in tqdm(enumerate(train_dataset)):
 
             # print(step, train_batchX.shape, train_batchY.shape)
             train_batchX = tf.divide(train_batchX, 255.0)
@@ -80,7 +81,7 @@ if __name__ == '__main__':
     
         # Save a checkpoint after every five epochs
         if (epoch + 1) % 5 == 0:
-            save_path = ckpt_manager.save()
+            
             print("Saved checkpoint at epoch %d" % (epoch + 1))
 
         # Print epoch number and loss value at the end of every epoch

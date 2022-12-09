@@ -1,6 +1,6 @@
 import string
 from numpy import array
-from pickle import load
+from pickle import load, dump, HIGHEST_PROTOCOL
 from keras.preprocessing.text import Tokenizer
 import matplotlib.pyplot as plt
 import keras
@@ -48,6 +48,11 @@ from transformer import TransformerModel
 from time import *
 from tensorflow import cast, int32, float32
 import tensorflow as tf
+
+from tqdm import tqdm
+from tqdm import trange
+
+
 
 # Load file into memory
 def load_dataset(filename):
@@ -229,7 +234,7 @@ def caption_preprocessor(data):
     final_captions = []
 
     for caption in data["caption"].astype(str):
-        caption = '<start>' + caption + ' <end>'
+        caption = '<start> ' + caption + ' <end>'
         final_captions.append(caption)
 
     return final_captions
@@ -245,7 +250,7 @@ def load_image(image_path):
     image = tf.image.resize(image,(384,384))
     image = tf.image.per_image_standardization(image)
     image = preprocess_input(image)
-    print("sdfdsf", image)
+    #print("sdfdsf", image)
     return image, image_path
 
 print("Total Images : " + str(len(vector_all_images)))
@@ -284,7 +289,14 @@ def tokenize_caption(top_k,train_captions):
   train_seqs = tokenizer.texts_to_sequences(train_captions)
   return train_seqs, tokenizer
 
+def save_tokenizer(tokenizer, name):
+        with open(name + '_tokenizer.pkl', 'wb') as handle:
+            dump(tokenizer, handle, protocol=HIGHEST_PROTOCOL)
+
+
 train_seqs , tokenizer = tokenize_caption(5000,train_captions)
+
+save_tokenizer(tokenizer, 'dec')
 
 print(train_captions[:5])
 
@@ -310,7 +322,9 @@ min_length = calc_min_length(train_seqs)
 print('Max Length of any caption : Min Length of any caption = '+ str(max_length) +" : "+str(min_length))
 
 def padding_train_sequences(train_seqs,max_length,padding_type):
+  
   cap_vector = tf.keras.preprocessing.sequence.pad_sequences(train_seqs, padding=padding_type,maxlen=max_length)
+  print("train seqs shape: ", len(cap_vector[0]), cap_vector[0])
   return cap_vector
            
 padded_caption_vector = padding_train_sequences(train_seqs,max_length,'post')
@@ -321,10 +335,10 @@ print("Training Data : X = {0},Y = {1}".format(len(img_name_train), len(caption_
 print("Test Data : X = {0},Y = {1}".format(len(img_name_test), len(caption_test)))
 
 #Convert the whole dataset into .npy format
-batch_size = 1
+batch_size = 2
 buffer_size = 10
 
-from tqdm import tqdm
+
 
 #for img, path in tqdm(image_dataset):
 
@@ -407,7 +421,7 @@ n = 6  # Number of layers in the encoder stack
  
 # Define the training parameters
 epochs = 10
-batch_size = 1
+batch_size = 2
 beta_1 = 0.9
 beta_2 = 0.98
 epsilon = 1e-5
@@ -435,18 +449,19 @@ class LRScheduler(LearningRateSchedule):
  
  
 # Instantiate an Adam optimizer
-optimizer = Adam(0.001, beta_1, beta_2, epsilon)
+optimizer = Adam(LRScheduler(d_model), beta_1, beta_2, epsilon)
  
 # Create model
 dec_vocab_size = 8918
-dec_seq_length = 38
+dec_seq_length = 39
 enc_vocab_size = 8918
-enc_seq_length = 38
+enc_seq_length = 39
 
 training_model = TransformerModel(dec_vocab_size, dec_seq_length, h, d_k, d_v, d_model, d_ff, n, dropout_rate)
  
  
 # Defining the loss function
+@function
 def loss_fcn(target, prediction):
     # Create mask so that the zero padding values are not included in the computation of loss
     padding_mask = math.logical_not(equal(target, 0))
@@ -460,6 +475,7 @@ def loss_fcn(target, prediction):
  
  
 # Defining the accuracy function
+@function
 def accuracy_fcn(target, prediction):
     # Create mask so that the zero padding values are not included in the computation of accuracy
     padding_mask = math.logical_not(equal(target, 0))
@@ -492,11 +508,10 @@ def train_step(encoder_input, decoder_input, decoder_output):
  
         # Run the forward pass of the model to generate a prediction
         prediction = training_model(encoder_input, decoder_input, training=True)
-        print(prediction.shape)
+        #print(prediction.shape)
  
         # Compute the training loss
         loss = loss_fcn(decoder_output, prediction)
-        # print("\nLoss\n", loss)
         # Compute the training accuracy
         accuracy = accuracy_fcn(decoder_output, prediction)
  
@@ -509,16 +524,19 @@ def train_step(encoder_input, decoder_input, decoder_output):
     train_loss(loss)
     train_accuracy(accuracy)
  
- 
-for epoch in range(epochs):
+#outer = tqdm(total=100, desc='Epoch', position=0)
+pbar = tqdm(enumerate(train_dataset))
+for epoch in (range(epochs)):
  
     train_loss.reset_states()
     train_accuracy.reset_states()
  
-    print("\nStart of epoch %d" % (epoch + 1))
+    #print("\nStart of epoch %d" % (epoch + 1))
  
+    #inner = tqdm(batch_size, desc='Batch', position=1)
     # Iterate over the dataset batches
-    for (step, (train_batchX, train_batchY)) in enumerate(train_dataset):
+    for (step, (train_batchX, train_batchY)) in pbar:
+
 
         # print(step, train_batchX.shape, train_batchY.shape)
         train_batchX = tf.divide(train_batchX, 255.0)
@@ -539,9 +557,15 @@ for epoch in range(epochs):
 
  
         train_step(encoder_input, decoder_input, decoder_output)
+        pbar.set_postfix({'Epoch, Step, Loss, Accuracy ': [epoch + 1,step,train_loss.result().numpy(),train_accuracy.result().numpy() ]})
+        #pbar.set_postfix({f'Epoch {epoch + 1} Step {step} Loss {train_loss.result():.4f} Accuracy {train_accuracy.result():.4f}'})
  
         if step % 50 == 0:
-            print(f'Epoch {epoch + 1} Step {step} Loss {train_loss.result():.4f} Accuracy {train_accuracy.result():.4f}')
+            save_path = ckpt_manager.save()
+            print("Saved checkpoint at epoch %d" % (epoch + 1))
+            training_model.save('saved_model/my_model')
+            #training_model.save_weights("weights/wghts" + str(epoch + 1) + ".ckpt")
+            #tqdm.write((f'Epoch {epoch + 1} Step {step} Loss {train_loss.result():.4f} Accuracy {train_accuracy.result():.4f}'))
             # print("Samples so far: %s" % ((step + 1) * batch_size))
  
     # Print epoch number and loss value at the end of every epoch
