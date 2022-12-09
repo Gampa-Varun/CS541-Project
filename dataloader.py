@@ -62,118 +62,118 @@ def load_dataset(filename):
 
 # To remove punctuations
 def remove_punctuations(orig_txt):
-    punctuation_removed = orig_txt.translate(string.punctuation)
-    return punctuation_removed
+	punctuation_removed = orig_txt.translate(string.punctuation)
+	return punctuation_removed
 
 # To remove single characters 
 def remove_single_characters(text):
-    len_greater_than_1 = ""
-    for word in text.split():
-        if len(word) > 1:
-            len_greater_than_1 += " " + word
-    return len_greater_than_1
+	len_greater_than_1 = ""
+	for word in text.split():
+		if len(word) > 1:
+			len_greater_than_1 += " " + word
+	return len_greater_than_1
 
 # To remove numeric values
 def remove_num(text, print_tf=False):
-    text_no_num = ""
-    for word in text.split():
-        isalpha = word.isalpha()
-        if print_tf:
-            print("   {:10} : {:}".format(word,isalpha))
-        if isalpha:
-            text_no_num += " " + word
-        return text_no_num
+	text_no_num = ""
+	for word in text.split():
+		isalpha = word.isalpha()
+		if print_tf:
+			print("   {:10} : {:}".format(word,isalpha))
+		if isalpha:
+			text_no_num += " " + word
+		return text_no_num
 
 #Make a dataframe out of raw text
 def build_dataset(text):
-    data_frame = []
-    for sentences in text.split('\n'):
-        splitted = sentences.split('\t')
-        if len(splitted) == 1:
-            continue
-        w = splitted[0].split("#")
-        data_frame.append(w + [splitted[1].lower()])
-    return data_frame  
-      
+	data_frame = []
+	for sentences in text.split('\n'):
+		splitted = sentences.split('\t')
+		if len(splitted) == 1:
+			continue
+		w = splitted[0].split("#")
+		data_frame.append(w + [splitted[1].lower()])
+	return data_frame  
+	  
 # If any filename dosn't have .jpg extension at last then mark it as Invalid filename
 def invalid_filename_check(data):
-  for filenames in data["filename"]:
-    found = re.search("(.(jpg)$)", filenames)
-    if (found):
-        pass
-    else:
-        print("Error file: {}".format(filenames))
+	for filenames in data["filename"]:
+		found = re.search("(.(jpg)$)", filenames)
+		if (found):
+			pass
+		else:
+			print("Error file: {}".format(filenames))
 
 def utility_counter(data):
-    filenames_unique = np.unique(data.filename.values)
-    print("The number of unique filenames : {}".format(len(filenames_unique)))
+	filenames_unique = np.unique(data.filename.values)
+	print("The number of unique filenames : {}".format(len(filenames_unique)))
 
-    count_dict = Counter(data.filename.values)
-    # print("Confirming that all the keys have count value as 5")
-    # print(count_dict)
+	count_dict = Counter(data.filename.values)
+	# print("Confirming that all the keys have count value as 5")
+	# print(count_dict)
 
-    print("The number of captions per image")
-    count = Counter(Counter(data.filename.values).values())
-    print(count)
-    return filenames_unique
+	print("The number of captions per image")
+	count = Counter(Counter(data.filename.values).values())
+	print(count)
+	return filenames_unique
 
 #Plot the images along with the corresponding 5 captions for better data visualization
 #Insert reference url here
 def data_show(data):
-    pic_count = 5
-    pixels_count = 384
-    target_size = (pixels_count,pixels_count,3)
+	pic_count = 5
+	pixels_count = 384
+	target_size = (pixels_count,pixels_count,3)
 
-    count = 1
-    fig = plt.figure(figsize=(10,20))
-    for jpgfnm in unique_filenames[20:25]:
-        filename = images_dir + '/' + jpgfnm
-        captions = list(data["caption"].loc[data["filename"]==jpgfnm].values)
-        image_load = load_img(filename, target_size=target_size)
+	count = 1
+	fig = plt.figure(figsize=(10,20))
+	for jpgfnm in unique_filenames[20:25]:
+		filename = images_dir + '/' + jpgfnm
+		captions = list(data["caption"].loc[data["filename"]==jpgfnm].values)
+		image_load = load_img(filename, target_size=target_size)
 
-        ax = fig.add_subplot(pic_count,2,count,xticks=[],yticks=[])
-        ax.imshow(image_load)
-        count += 1
+		ax = fig.add_subplot(pic_count,2,count,xticks=[],yticks=[])
+		ax.imshow(image_load)
+		count += 1
 
-        ax = fig.add_subplot(pic_count,2,count)
-        plt.axis('off')
-        ax.plot()
-        ax.set_xlim(0,1)
-        ax.set_ylim(0,len(captions))
-        for i, caption in enumerate(captions):
-            ax.text(0,i,caption,fontsize=20)
-        count +=1
-    plt.show()        
+		ax = fig.add_subplot(pic_count,2,count)
+		plt.axis('off')
+		ax.plot()
+		ax.set_xlim(0,1)
+		ax.set_ylim(0,len(captions))
+		for i, caption in enumerate(captions):
+			ax.text(0,i,caption,fontsize=20)
+		count +=1
+	plt.show()        
 
 #Create vocabulary
 def make_vocab(data):
-    vocab = []
-    for captions in data.caption.values:
-        vocab.extend(captions.split())
-    print("Vocabulary Size : {}".format(len(set(vocab))))
-    return vocab   
+	vocab = []
+	for captions in data.caption.values:
+		vocab.extend(captions.split())
+	print("Vocabulary Size : {}".format(len(set(vocab))))
+	return vocab   
 
 #Find the frequency of words in the dataset
 def word_count(data,vocabulary):
-    count = Counter(vocabulary)
-    append_1 = []
-    append_2 = []
-    for i in count.keys():
-        append_1.append(i)
-    for j in count.values():
-        append_2.append(j)
-    data = {"word":append_1, "count":append_2}
-    dfword = pd.DataFrame(data)
-    dfword = dfword.sort_values(by='count', ascending=False)
-    dfword = dfword.reset_index()[["word","count"]]
-    return(dfword)     
+	count = Counter(vocabulary)
+	append_1 = []
+	append_2 = []
+	for i in count.keys():
+		append_1.append(i)
+	for j in count.values():
+		append_2.append(j)
+	data = {"word":append_1, "count":append_2}
+	dfword = pd.DataFrame(data)
+	dfword = dfword.sort_values(by='count', ascending=False)
+	dfword = dfword.reset_index()[["word","count"]]
+	return(dfword)     
 
 def text_clean(text_original):
-    text = remove_punctuations(text_original)
-    text = remove_single_characters(text)
-    text = remove_num(text)
-    return(text)
-    
+	text = remove_punctuations(text_original)
+	text = remove_single_characters(text)
+	text = remove_num(text)
+	return(text)
+	
 # for i, caption in enumerate(data.caption.values):
 #     newcaption = text_clean(caption)
 #     data["caption"].iloc[i] = newcaption
@@ -184,32 +184,32 @@ def text_clean(text_original):
 
 #Function to set the path for each image
 def image_preprocessor(data, images_dir):
-    vector_all_images = []
+	vector_all_images = []
 
-    for filename in data["filename"]:
-        full_image_path = images_dir+"/"+filename
-        vector_all_images.append(full_image_path)
-    return vector_all_images
+	for filename in data["filename"]:
+		full_image_path = images_dir+"/"+filename
+		vector_all_images.append(full_image_path)
+	return vector_all_images
 #print(vector_all_images[:10])
 
 def caption_preprocessor(data):
-    final_captions = []
+	final_captions = []
 
-    for caption in data["caption"].astype(str):
-        caption = '<start> ' + caption + ' <end>'
-        final_captions.append(caption)
+	for caption in data["caption"].astype(str):
+		caption = '<start> ' + caption + ' <end>'
+		final_captions.append(caption)
 
-    return final_captions
+	return final_captions
 
 #Resize the image to 224*224*3
 def load_image(image_path):
-    image = tf.io.read_file(image_path)
-    image = tf.image.decode_jpeg(image, channels=3)
-    image = tf.image.resize(image,(384,384))
-    image = tf.image.per_image_standardization(image)
-    image = preprocess_input(image)
-    #print("sdfdsf", image)
-    return image, image_path
+	image = tf.io.read_file(image_path)
+	image = tf.image.decode_jpeg(image, channels=3)
+	image = tf.image.resize(image,(384,384))
+	image = tf.image.per_image_standardization(image)
+	image = preprocess_input(image)
+	#print("sdfdsf", image)
+	return image, image_path
 
 def data_limiter(num,total_captions,all_img_name_vector):
   # Shuffle captions and image_names together
@@ -235,19 +235,19 @@ def tokenize_caption(top_k,train_captions):
   return train_seqs, tokenizer
 
 def save_tokenizer(tokenizer, name):
-        with open(name + '_tokenizer.pkl', 'wb') as handle:
-            dump(tokenizer, handle, protocol=HIGHEST_PROTOCOL)
+		with open(name + '_tokenizer.pkl', 'wb') as handle:
+			dump(tokenizer, handle, protocol=HIGHEST_PROTOCOL)
 
 #print(tokenizer.index_word)
 
 #Pad the sequences to the maximum length of the captions
 # Find the maximum length of any caption in our dataset
 def calc_max_length(tensor):
-    return max(len(t) for t in tensor)
+	return max(len(t) for t in tensor)
 
 # Find the minimum length of any caption in our dataset
 def calc_min_length(tensor):
-    return min(len(t) for t in tensor)
+	return min(len(t) for t in tensor)
 
 def padding_train_sequences(train_seqs,max_length,padding_type):
   
@@ -309,90 +309,19 @@ def ddd(img_dir, cap_dir, batch_size, buffer_size):
 	padded_caption_vector = padding_train_sequences(train_seqs,max_length,'post')
 
 	img_name_train, img_name_test, caption_train, caption_test = train_test_split(img_name_vector,padded_caption_vector,test_size=0.2,random_state=0)
+	img_name_train, img_name_val, caption_train, caption_val   = train_test_split(img_name_train,caption_train,test_size=0.1,random_state=0)
 	print("Training Data : X = {0},Y = {1}".format(len(img_name_train), len(caption_train)))
 	print("Test Data : X = {0},Y = {1}".format(len(img_name_test), len(caption_test)))
 	
 	train_dataset = create_dataset(img_name_train,caption_train, batch_size, buffer_size)
+	val_dataset = create_dataset(img_name_val,caption_val, batch_size, buffer_size)
 	test_dataset = create_dataset(img_name_test, caption_test, batch_size, buffer_size)
 
-	return train_dataset, test_dataset
+	return train_dataset, val_dataset, test_dataset
 
-# Implementing a learning rate scheduler
-class LRScheduler(LearningRateSchedule):
-    def __init__(self, d_model, warmup_steps=4000, **kwargs):
-        super(LRScheduler, self).__init__(**kwargs)
- 
-        self.d_model = cast(d_model, float32)
-        self.warmup_steps = warmup_steps
- 
-    def __call__(self, step_num):
- 
-        # Linearly increasing the learning rate for the first warmup_steps, and decreasing it thereafter
-        arg1 = step_num ** -0.5
-        arg2 = step_num * (self.warmup_steps ** -1.5)
- 
-        return (self.d_model ** -0.5) * math.minimum(arg1, arg2)
 
-    def get_config(self):
-        config = {
-        'd_model': self.d_model,
-        'warmup_steps': self.warmup_steps,
-    }
-        return config
 
-# Defining the loss function
-@function
-def loss_fcn(target, prediction):
-    # Create mask so that the zero padding values are not included in the computation of loss
-    padding_mask = math.logical_not(equal(target, 0))
-    padding_mask = cast(padding_mask, float32)
- 
-    # Compute a sparse categorical cross-entropy loss on the unmasked values
-    loss = sparse_categorical_crossentropy(target, prediction, from_logits=True) * padding_mask
- 
-    # Compute the mean loss over the unmasked values
-    return reduce_sum(loss) / reduce_sum(padding_mask)
 
-# Defining the accuracy function
-@function
-def accuracy_fcn(target, prediction):
-    # Create mask so that the zero padding values are not included in the computation of accuracy
-    padding_mask = math.logical_not(equal(target, 0))
- 
-    # Find equal prediction and target values, and apply the padding mask
-    maxpred = cast(argmax(prediction, axis=2),int32)
-    accuracy = equal(target, maxpred)
-    accuracy = math.logical_and(padding_mask, accuracy)
- 
-    # Cast the True/False values to 32-bit-precision floating-point numbers
-    padding_mask = cast(padding_mask, float32)
-    accuracy = cast(accuracy, float32)
- 
-    # Compute the mean accuracy over the unmasked values
-    return reduce_sum(accuracy) / reduce_sum(padding_mask)
-
-# Speeding up the training process
-@function
-def train_step(inputs, decoder_output, training_model, optimizer, train_loss, train_accuracy):
-    with GradientTape() as tape:
- 
-        # Run the forward pass of the model to generate a prediction
-        prediction = training_model(inputs, training=True)
-        #print(prediction.shape)
- 
-        # Compute the training loss
-        loss = loss_fcn(decoder_output, prediction)
-        # Compute the training accuracy
-        accuracy = accuracy_fcn(decoder_output, prediction)
- 
-    # Retrieve gradients of the trainable variables with respect to the training loss
-    gradients = tape.gradient(loss, training_model.trainable_weights)
- 
-    # Update the values of the trainable variables by gradient descent
-    optimizer.apply_gradients(zip(gradients, training_model.trainable_weights))
- 
-    train_loss(loss)
-    train_accuracy(accuracy)
 
 if __name__ == '__main__':
 	# Test to load some images alongside its 5 corresponding captions
@@ -472,122 +401,7 @@ if __name__ == '__main__':
 	print("Training Data : X = {0},Y = {1}".format(len(img_name_train), len(caption_train)))
 	print("Test Data : X = {0},Y = {1}".format(len(img_name_test), len(caption_test)))
 
-	#Convert the whole dataset into .npy format
-	batch_size = 1
-	buffer_size = 10
-
-	# for img, path in tqdm(image_dataset):
-	# 	batch_features = img
-	# 	batch_features = tf.transpose(batch_features, perm=[0, 3, 1, 2])
-	# 	batch_features = tf.reshape(batch_features,(batch_features.shape[0], -1, batch_features.shape[3]))
-	# 	print("BF Shape", batch_features.shape)
-	# 	for bf, p in zip(batch_features, path):
-	# 		path_of_feature = p.numpy().decode("utf-8")
-	# 		np.save(path_of_feature, bf.numpy())
-
+	
 	# Creating train and test dataset
 	train_dataset = create_dataset(img_name_train,caption_train, batch_size, buffer_size)
 	test_dataset = create_dataset(img_name_test,caption_test, batch_size, buffer_size)
-
-	# Define the model parameters
-	h = 8  # Number of self-attention heads
-	d_k = 64  # Dimensionality of the linearly projected queries and keys
-	d_v = 64  # Dimensionality of the linearly projected values
-	d_model = 512  # Dimensionality of model layers' outputs
-	d_ff = 2048  # Dimensionality of the inner fully connected layer
-	n = 6  # Number of layers in the encoder stack
-	
-	# Define the training parameters
-	epochs = 10
-	batch_size = 1
-	beta_1 = 0.9
-	beta_2 = 0.98
-	epsilon = 1e-5
-	dropout_rate = 0.1
-
-	# Instantiate an Adam optimizer
-	optimizer = Adam(LRScheduler(d_model), beta_1, beta_2, epsilon)
-	
-	# Create model
-	dec_vocab_size = 8918
-	dec_seq_length = 39
-	enc_vocab_size = 8918
-	enc_seq_length = 39
-
-	training_model = TransformerModel(dec_vocab_size, dec_seq_length, h, d_k, d_v, d_model, d_ff, n, dropout_rate,name='SWINtransformer').build_graph(True)
-
-	# Include metrics monitoring
-	train_loss = Mean(name='train_loss')
-	train_accuracy = Mean(name='train_accuracy')
-	
-
-	ckpt = train.Checkpoint(model=training_model, optimizer=optimizer)
-	ckpt_manager = train.CheckpointManager(ckpt, "./checkpoints", max_to_keep=3)
-
-
-	training_model.compile(loss=loss_fcn, optimizer=optimizer)
-
-	 
-	#outer = tqdm(total=100, desc='Epoch', position=0)
-	#dset = h5py.File.create_dataset(name="dataset_name", data=data, overwrite=True)
-	pbar = tqdm(enumerate(train_dataset))
-	for epoch in (range(epochs)):
-	
-		train_loss.reset_states()
-		train_accuracy.reset_states()
-	
-		#print("\nStart of epoch %d" % (epoch + 1))
-	
-		#inner = tqdm(batch_size, desc='Batch', position=1)
-		# Iterate over the dataset batches
-		start_time = time.time()
-		for (step, (train_batchX, train_batchY)) in pbar:
-
-
-			# print(step, train_batchX.shape, train_batchY.shape)
-			train_batchX = tf.divide(train_batchX, 255.0)
-			# print("Train Batch XXXXXXXXX", train_batchX)
-			encoder_input = train_batchX
-	
-			# Define the encoder and decoder inputs, and the decoder output
-			#encoder_input = train_batchX[:, 1:]
-			# train_batchY = cast(tf.convert_to_tensor((random.random([64,38])),int32),dtype=int32)
-			decoder_input = cast(train_batchY[:, :-1], int32)
-			# print(f" decoder input shape: {decoder_input.shape}")
-			# encoder_input = cast(tf.convert_to_tensor((random.random([64,3,384,384])),float32),dtype=float32)
-			decoder_output = cast(train_batchY[:, 1:], int32)
-
-			
-			
-			inputs = [encoder_input,decoder_input]
-
-	
-			train_step(inputs, decoder_output, training_model, optimizer)
-			pbar.set_postfix({'Epoch, Step, Loss, Accuracy ': [epoch + 1,step,train_loss.result().numpy(),train_accuracy.result().numpy() ]})
-			#pbar.set_postfix({f'Epoch {epoch + 1} Step {step} Loss {train_loss.result():.4f} Accuracy {train_accuracy.result():.4f}'})
-	
-			if (step+1) % 50 == 0:
-				#save_path = ckpt_manager.save()
-				print("Saved checkpoint at epoch %d" % (epoch + 1))
-				#name = 'weights/weight' + str(step)
-				print(training_model.save_spec() is None)
-				#training_model.save('model/SWINmodel',include_optimizer=False)
-				training_model.save_weights('./checkpoints/my_checkpoint')
-				#training_model.save_weights('model_weights.h5')
-				#save_path = ckpt_manager.save()
-				#training_model.save_weights("weights/wghts" + str(epoch + 1) + ".ckpt")
-				#save_path = ckpt_manager.save()
-				#training_model.save_weights(name,save_format='tf')
-				#training_model.save_weights("weights/wghts" + str(epoch + 1) + ".ckpt")
-				#tqdm.write((f'Epoch {epoch + 1} Step {step} Loss {train_loss.result():.4f} Accuracy {train_accuracy.result():.4f}'))
-				# print("Samples so far: %s" % ((step + 1) * batch_size))
-	
-		# Print epoch number and loss value at the end of every epoch
-		print("Epoch %d: Training Loss %.4f, Training Accuracy %.4f" % (epoch + 1, train_loss.result(), train_accuracy.result()))
-	
-		# Save a checkpoint after every five epochs
-		if (epoch + 1) % 5 == 0:
-			save_path = ckpt_manager.save()
-			print("Saved checkpoint at epoch %d" % (epoch + 1))
-	
-	print("Total time taken: %.2fs" % (time() - start_time))

@@ -92,11 +92,6 @@ inferencing_model = TransformerModel(dec_vocab_size, dec_seq_length, h, d_k, d_v
 inferencing_model.compile(loss=loss_fcn, optimizer=optimizer)
 inferencing_model.load_weights('./checkpoints/my_checkpoint')
 
-#inferencing_model =  tf.saved_model.load('model/SWINmodel')
-
-
-print("weights: ", inferencing_model.layers[0].get_weights()[0][0])
-
 #checkpoint = tf.train.Checkpoint()
 
 # Use the Checkpoint.restore method to restore the model weights from the checkpoint file
