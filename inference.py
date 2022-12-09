@@ -20,8 +20,7 @@ def load_image(image_path):
 
 dec_vocab_size = 8918
 dec_seq_length = 39
-enc_vocab_size = 8918
-enc_seq_length = 39
+
 
 # Define the model parameters
 h = 8  # Number of self-attention heads
@@ -70,40 +69,45 @@ class Translate(Module):
         decoder_input = tf.Variable(tf.zeros( (38),dtype=tf.int32 ), name="decoder_input")
         #decoder_output = decoder_output.write(0, output_start)
         decoder_input = decoder_input[0].assign(output_start)
-        decoder_input = tf.expand_dims(decoder_input, axis=0)
-        for i in range(dec_seq_length):
+        decoder_input_ = tf.expand_dims(decoder_input, axis=0)
+        for i in range(dec_seq_length-1):
  
-            # Predict an output token
-            #sentence_input = transpose(decoder_output.stack())
-            #print("input shape: ", decoder_output.shape)
-            #padded_caption_vector = self.padding_train_sequences(decoder_output,38,'post')
-            #print("caption vector: ", padded_caption_vector) 
-            prediction = self.transformer(sentence, decoder_input, training=False)
+
+            prediction = self.transformer(sentence, decoder_input_, training=False)
             print("prediction shape: ", prediction.shape)
+             
+
  
-            prediction = prediction[:, -1, :]
+            prediction = prediction[:, i, :]
  
             # Select the prediction with the highest score
             predicted_id = argmax(prediction, axis=-1)
-            predicted_id = predicted_id[0][newaxis]
+            #predicted_id = predicted_id[0][newaxis]
  
             # Write the selected prediction to the output array at the next available index
-            decoder_output = decoder_output.write(i + 1, predicted_id)
+            #decoder_input = tf.squeeze(decoder_input)
+            #decoder_output = decoder_output.write(i + 1, predicted_id)
+            predicted_id = tf.cast(predicted_id, tf.int32)
+            decoder_input = decoder_input[i].assign(predicted_id)
+            decoder_input_ = tf.expand_dims(decoder_input, axis=0)
  
             # Break if an <EOS> token is predicted
             if predicted_id == output_end:
                 break
  
-        output = transpose(decoder_output.stack())[0]
-        output = output.numpy()
+        #output = transpose(decoder_output.stack())[0]
+        output = decoder_input.numpy()
  
         output_str = []
  
         # Decode the predicted tokens into an output string
-        for i in range(output.shape[0]):
+        for i in range(len(output)):
  
             key = output[i]
-            print(dec_tokenizer.index_word[key])
+            #print(dec_tokenizer.index_word[key])
+            output_str.append(dec_tokenizer.index_word[key])
+            if(key == output_end):
+                break
  
         return output_str
 
@@ -114,7 +118,7 @@ class Translate(Module):
 #inputs2 = tf.keras.Input(shape=(38),name='text')
 #outputs = inferencing_model(inputs,inputs2)
 #inferencing_model = tf.keras.Model([inputs,inputs2],outputs,name ='inferencing_model')
-inferencing_model = tf.keras.models.load_model('saved_model/my_model')
+#inferencing_model = tf.keras.models.load_model('saved_model/my_model')
 image_path = 'Dataset/Flicker8k_Dataset/3637013_c675de7705.jpg'
 
 image, image_path = load_image(image_path) 
