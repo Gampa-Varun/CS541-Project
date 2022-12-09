@@ -19,7 +19,7 @@ if __name__ == '__main__':
     
     # Define the training parameters
     epochs = 10
-    batch_size = 2
+    batch_size = 1
     beta_1 = 0.9
     beta_2 = 0.98
     epsilon = 1e-5
@@ -34,7 +34,7 @@ if __name__ == '__main__':
     enc_vocab_size = 8918
     enc_seq_length = 39
 
-    training_model = TransformerModel(dec_vocab_size, dec_seq_length, h, d_k, d_v, d_model, d_ff, n, dropout_rate)
+    training_model = TransformerModel(dec_vocab_size, dec_seq_length, h, d_k, d_v, d_model, d_ff, n, dropout_rate,name='SWINtransformer')
     
 
     # Include metrics monitoring
@@ -70,7 +70,9 @@ if __name__ == '__main__':
             # encoder_input = cast(tf.convert_to_tensor((random.random([64,3,384,384])),float32),dtype=float32)
             decoder_output = cast(train_batchY[:, 1:], int32)
 
-            train_step(encoder_input, decoder_input, decoder_output)
+            inputs = [encoder_input,decoder_input]
+
+            train_step(inputs, decoder_output)
     
             if step % 50 == 0:
                 print(f'Epoch {epoch + 1} Step {step} Loss {train_loss.result():.4f} Accuracy {train_accuracy.result():.4f}')

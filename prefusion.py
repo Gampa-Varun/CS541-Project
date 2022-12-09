@@ -3,12 +3,12 @@ from tensorflow.keras.layers import Layer, Dense, ReLU, LayerNormalization
 from keras.backend import softmax
 
 class Prefusion(Layer):
-    def __init__(self, d_model, **kwargs):
-        super(Prefusion, self).__init__(**kwargs)
+    def __init__(self, d_model,name=None, **kwargs):
+        super(Prefusion, self).__init__(name=name, **kwargs)
 
-        self.activation = ReLU()
-        self.Linear = Dense(d_model)
-        self.layer_norm = LayerNormalization()
+        self.activation = ReLU(name=name+'relu')
+        self.Linear = Dense(d_model,name=name+'dense1')
+        self.layer_norm = LayerNormalization(name=name+'layernorm')
 
  
     def call(self,x, vg):

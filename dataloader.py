@@ -33,7 +33,6 @@ from keras.applications.vgg16 import VGG16, preprocess_input
 
 from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
-from encoder import Encoder
 from decoder import Decoder
 from tensorflow import math, cast, float32, linalg, ones, maximum, newaxis
 from tensorflow.keras import Model
@@ -51,6 +50,8 @@ import tensorflow as tf
 
 from tqdm import tqdm
 from tqdm import trange
+
+import h5py
 
 
 
@@ -335,7 +336,7 @@ print("Training Data : X = {0},Y = {1}".format(len(img_name_train), len(caption_
 print("Test Data : X = {0},Y = {1}".format(len(img_name_test), len(caption_test)))
 
 #Convert the whole dataset into .npy format
-batch_size = 2
+batch_size = 1
 buffer_size = 10
 
 
@@ -421,7 +422,7 @@ n = 6  # Number of layers in the encoder stack
  
 # Define the training parameters
 epochs = 10
-batch_size = 2
+batch_size = 1
 beta_1 = 0.9
 beta_2 = 0.98
 epsilon = 1e-5
@@ -446,6 +447,14 @@ class LRScheduler(LearningRateSchedule):
         arg2 = step_num * (self.warmup_steps ** -1.5)
  
         return (self.d_model ** -0.5) * math.minimum(arg1, arg2)
+
+    def get_config(self):
+        config = {
+        'd_model': self.d_model,
+        'warmup_steps': self.warmup_steps,
+
+    }
+        return config
  
  
 # Instantiate an Adam optimizer
@@ -457,8 +466,8 @@ dec_seq_length = 39
 enc_vocab_size = 8918
 enc_seq_length = 39
 
-training_model = TransformerModel(dec_vocab_size, dec_seq_length, h, d_k, d_v, d_model, d_ff, n, dropout_rate)
- 
+training_model = TransformerModel(dec_vocab_size, dec_seq_length, h, d_k, d_v, d_model, d_ff, n, dropout_rate,name='SWINtransformer').build_graph(True)
+
  
 # Defining the loss function
 #@function
@@ -497,17 +506,20 @@ def accuracy_fcn(target, prediction):
 train_loss = Mean(name='train_loss')
 train_accuracy = Mean(name='train_accuracy')
  
-# Create a checkpoint object and manager to manage multiple checkpoints
+
 ckpt = train.Checkpoint(model=training_model, optimizer=optimizer)
 ckpt_manager = train.CheckpointManager(ckpt, "./checkpoints", max_to_keep=3)
- 
+
+
+training_model.compile(loss=loss_fcn, optimizer=optimizer)
+
 # Speeding up the training process
-#@function
-def train_step(encoder_input, decoder_input, decoder_output):
+@function
+def train_step(inputs, decoder_output):
     with GradientTape() as tape:
  
         # Run the forward pass of the model to generate a prediction
-        prediction = training_model(encoder_input, decoder_input, training=True)
+        prediction = training_model(inputs, training=True)
         #print(prediction.shape)
  
         # Compute the training loss
@@ -525,6 +537,7 @@ def train_step(encoder_input, decoder_input, decoder_output):
     train_accuracy(accuracy)
  
 #outer = tqdm(total=100, desc='Epoch', position=0)
+#dset = h5py.File.create_dataset(name="dataset_name", data=data, overwrite=True)
 pbar = tqdm(enumerate(train_dataset))
 for epoch in (range(epochs)):
  
@@ -553,17 +566,25 @@ for epoch in (range(epochs)):
 
         
         
-
+        inputs = [encoder_input,decoder_input]
 
  
-        train_step(encoder_input, decoder_input, decoder_output)
+        train_step(inputs, decoder_output)
         pbar.set_postfix({'Epoch, Step, Loss, Accuracy ': [epoch + 1,step,train_loss.result().numpy(),train_accuracy.result().numpy() ]})
         #pbar.set_postfix({f'Epoch {epoch + 1} Step {step} Loss {train_loss.result():.4f} Accuracy {train_accuracy.result():.4f}'})
  
-        if step % 50 == 0:
-            save_path = ckpt_manager.save()
+        if (step+1) % 50 == 0:
+            #save_path = ckpt_manager.save()
             print("Saved checkpoint at epoch %d" % (epoch + 1))
-            training_model.save('saved_model/my_model')
+            #name = 'weights/weight' + str(step)
+            print(training_model.save_spec() is None)
+            #training_model.save('model/SWINmodel',include_optimizer=False)
+            training_model.save_weights('./checkpoints/my_checkpoint')
+            #training_model.save_weights('model_weights.h5')
+            #save_path = ckpt_manager.save()
+            #training_model.save_weights("weights/wghts" + str(epoch + 1) + ".ckpt")
+            #save_path = ckpt_manager.save()
+            #training_model.save_weights(name,save_format='tf')
             #training_model.save_weights("weights/wghts" + str(epoch + 1) + ".ckpt")
             #tqdm.write((f'Epoch {epoch + 1} Step {step} Loss {train_loss.result():.4f} Accuracy {train_accuracy.result():.4f}'))
             # print("Samples so far: %s" % ((step + 1) * batch_size))
@@ -578,7 +599,3 @@ for epoch in (range(epochs)):
  
 print("Total time taken: %.2fs" % (time() - start_time))
 
-for (step, (train_batchX, train_batchY)) in enumerate(train_dataset):
-
-  print(step, train_batchX.shape, train_batchY.shape)
-  break

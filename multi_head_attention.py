@@ -4,8 +4,8 @@ from keras.backend import softmax
  
 # Implementing the Scaled-Dot Product Attention
 class DotProductAttention(Layer):
-    def __init__(self, **kwargs):
-        super(DotProductAttention, self).__init__(**kwargs)
+    def __init__(self,name=None, **kwargs):
+        super(DotProductAttention, self).__init__(name=name,**kwargs)
  
     def call(self, queries, keys, values, d_k, mask=None):
         # Scoring the queries against the keys after transposing the latter, and scaling
@@ -23,18 +23,18 @@ class DotProductAttention(Layer):
 
 
 # Implementing the Multi-Head Attention
-class MultiHeadAttention(Layer):
-    def __init__(self, h, d_k, d_v, d_model, **kwargs):
-        super(MultiHeadAttention, self).__init__(**kwargs)
-        self.attention = DotProductAttention()  # Scaled dot product attention
+class MultiHeadAttentionDec(Layer):
+    def __init__(self, h, d_k, d_v, d_model,name=None, **kwargs):
+        super(MultiHeadAttentionDec, self).__init__(name=name,**kwargs)
+        self.attention = DotProductAttention(name=name+'dotproductattention')  # Scaled dot product attention
         self.heads = h  # Number of attention heads to use
         self.d_k = d_k  # Dimensionality of the linearly projected queries and keys
         self.d_v = d_v  # Dimensionality of the linearly projected values
         self.d_model = d_model  # Dimensionality of the model
-        self.W_q = Dense(d_k)  # Learned projection matrix for the queries
-        self.W_k = Dense(d_k)  # Learned projection matrix for the keys
-        self.W_v = Dense(d_v)  # Learned projection matrix for the values
-        self.W_o = Dense(d_model)  # Learned projection matrix for the multi-head output
+        self.W_q = Dense(d_k,name=name+'Wq')  # Learned projection matrix for the queries
+        self.W_k = Dense(d_k,name=name+'Wk')  # Learned projection matrix for the keys
+        self.W_v = Dense(d_v,name=name+'Wv')  # Learned projection matrix for the values
+        self.W_o = Dense(d_model,name=name+'Wo')  # Learned projection matrix for the multi-head output
  
     def reshape_tensor(self, x, heads, flag):
         if flag:

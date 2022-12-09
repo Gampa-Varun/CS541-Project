@@ -7,19 +7,19 @@ import matplotlib.pyplot as plt
 
 
 class PositionEmbeddingFixedWeights(Layer):
-    def __init__(self, sequence_length, vocab_size, output_dim, **kwargs):
-        super(PositionEmbeddingFixedWeights, self).__init__(**kwargs)
+    def __init__(self, sequence_length, vocab_size, output_dim,name=None, **kwargs):
+        super(PositionEmbeddingFixedWeights, self).__init__(name=name,**kwargs)
         word_embedding_matrix = self.get_position_encoding(vocab_size, output_dim)   
         position_embedding_matrix = self.get_position_encoding(sequence_length, output_dim)                                          
         self.word_embedding_layer = Embedding(
             input_dim=vocab_size, output_dim=output_dim,
             weights=[word_embedding_matrix],
-            trainable=False
+            trainable=False,name=name+'word_embeddings'
         )
         self.position_embedding_layer = Embedding(
             input_dim=sequence_length, output_dim=output_dim,
             weights=[position_embedding_matrix],
-            trainable=False
+            trainable=False,name=name+'position_embeddings'
         )
              
     def get_position_encoding(self, seq_len, d, n=10000):
