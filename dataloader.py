@@ -401,6 +401,18 @@ if __name__ == '__main__':
 	print("Training Data : X = {0},Y = {1}".format(len(img_name_train), len(caption_train)))
 	print("Test Data : X = {0},Y = {1}".format(len(img_name_test), len(caption_test)))
 
+	batch_size = 32
+	buffer_size = 10
+
+	for img, path in tqdm(image_dataset):
+		batch_features = (img)
+		batch_features = tf.transpose(batch_features, perm=[0, 3, 1, 2])
+		print(batch_features.shape)
+		for bf, p in zip(batch_features, path):
+			path_of_feature = p.numpy().decode("utf-8")
+			np.save(path_of_feature, bf.numpy())
+	
+	print(batch_features.shape)
 	
 	# Creating train and test dataset
 	train_dataset = create_dataset(img_name_train,caption_train, batch_size, buffer_size)
