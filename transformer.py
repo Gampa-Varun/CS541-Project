@@ -65,7 +65,7 @@ class TransformerModel(Model):
         dec_in_lookahead_mask = maximum(dec_in_padding_mask, dec_in_lookahead_mask)
  
         # Feed the input into the encoder
-        encoder_output, encoder_output_global = self.encoder(encoder_input)
+        encoder_output, encoder_output_global = self.encoder(encoder_input,training)
  
 
 

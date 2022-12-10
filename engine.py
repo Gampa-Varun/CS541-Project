@@ -12,7 +12,7 @@ val_loss = Mean(name='val_loss')
 
 
 # Defining the loss function
-@tf.function
+#@tf.function
 def loss_fcn(target, prediction):
 	# Create mask so that the zero padding values are not included in the computation of loss
 	padding_mask = math.logical_not(equal(target, 0))
@@ -25,7 +25,7 @@ def loss_fcn(target, prediction):
 	return reduce_sum(loss) / reduce_sum(padding_mask)
 
 # Defining the accuracy function
-@tf.function
+#@tf.function
 def accuracy_fcn(target, prediction):
 	# Create mask so that the zero padding values are not included in the computation of accuracy
 	padding_mask = math.logical_not(equal(target, 0))
@@ -43,7 +43,7 @@ def accuracy_fcn(target, prediction):
 	return reduce_sum(accuracy) / reduce_sum(padding_mask)
 
 # Speeding up the training process
-@tf.function
+#@tf.function
 def train_step(inputs, decoder_output, training_model, optimizer, train_loss, train_accuracy):
 	with GradientTape() as tape:
  
@@ -101,7 +101,7 @@ if __name__ == '__main__':
 
 	captions_dir = 'Dataset/Flickr8k_text/Flickr8k.token.txt'
 
-	train_dataset, val_dataset, test_dataset = ddd(images_dir, captions_dir, 2, 10)
+	train_dataset, val_dataset, test_dataset = ddd(images_dir, captions_dir, 1, 10)
 
 	# Define the model parameters
 	h = 8  # Number of self-attention heads
@@ -128,7 +128,7 @@ if __name__ == '__main__':
 	enc_vocab_size = 8918
 	enc_seq_length = 39
 
-	training_model = TransformerModel(dec_vocab_size, dec_seq_length, h, d_k, d_v, d_model, d_ff, n, dropout_rate,name='SWINtransformer').build_graph(True)
+	training_model = TransformerModel(dec_vocab_size, dec_seq_length, h, d_k, d_v, d_model, d_ff, n, dropout_rate,name='SWINtransformer')#.build_graph(False)
 	training_model.compile(loss=loss_fcn, optimizer=optimizer)
 
 
@@ -156,8 +156,8 @@ if __name__ == '__main__':
 	
 			train_step(inputs, decoder_output, training_model, optimizer, train_loss, train_accuracy)
 			pbar.set_postfix({'Epoch, Step, Loss, Accuracy ': [epoch + 1,step,train_loss.result().numpy(),train_accuracy.result().numpy() ]})	
-			if (step+1) % 10 == 0:
-				
+			if (step+1) % 50 == 0:
+				pass
 				#tqdm.write("Saved checkpoint at epoch %d" % (epoch + 1))
 				#print(training_model.save_spec() is None)
 				#training_model.save_weights('./checkpoints/my_checkpoint')

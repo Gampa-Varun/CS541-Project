@@ -4,6 +4,7 @@ from tensorflow import keras
 import tensorflow_probability as tfp
 from tensorflow.keras.utils import plot_model
 
+
 def to_2tuple(x):
     return (x, x)
 
@@ -15,13 +16,14 @@ def DropPath(x, drop_prob: float = 0., training: bool = False, scale_by_keep: bo
     changing the layer and argument names to 'drop path' rather than mix DropConnect as a layer name and use
     'survival rate' as the argument.
     """
+
     if drop_prob == 0. or not training:
         return x
     keep_prob = 1 - drop_prob
     shape = (x.shape[0],) + (1,) * (tf.size(x) - 1)  # work with diff dim tensors, not just 2D ConvNets
-    random_tensor = tfp.distributions.Bernoulli(probs=keep_prob).sample(sample_shape=x.shape)
+    random_tensor = tf.cast(tfp.distributions.Bernoulli(probs=keep_prob).sample(sample_shape=x.shape),tf.float32)
     if keep_prob > 0.0 and scale_by_keep:
-        random_tensor = random_tensor/keep_prob
+        random_tensor = tf.cast(random_tensor/keep_prob,tf.float32)
 
     return x * random_tensor
 
@@ -596,7 +598,8 @@ class SwinTransformerBlock(tf.keras.layers.Layer):
         self.attn_mask = attn_mask
         
     
-    def call(self, x):
+    def call(self, x, training):
+        
         H, W = self.input_resolution
         B, L, C = x.shape
         B = tf.shape(x)[0]
@@ -631,9 +634,9 @@ class SwinTransformerBlock(tf.keras.layers.Layer):
         x = tf.reshape(x, [B, H*W, C])
 
         # FFn
-        x = shortcut + DropPath(x, self.drop_path)
+        x = shortcut + DropPath(x, self.drop_path, training = training)
     
-        x = x + DropPath(self.mlp(self.norm2(x)), self.drop_path)
+        x = x + DropPath(self.mlp(self.norm2(x)), self.drop_path, training = training)
         # x = x + (self.mlp(self.norm2(x)))
         
         return x
@@ -756,7 +759,7 @@ class RefiningEncoderBlock(tf.keras.layers.Layer):
         self.attn_mask = attn_mask
         
     
-    def call(self, x_c):
+    def call(self, x_c, training):
         x = x_c[:,:-1,:]
         xavg = x_c[:,-1,:]
         xavg = tf.expand_dims(xavg,axis=1)
@@ -794,7 +797,7 @@ class RefiningEncoderBlock(tf.keras.layers.Layer):
         x = tf.reshape(x, [B, H*W, C])
 
         # FFn
-        x = shortcut + DropPath(x, self.drop_path)
+        x = shortcut + DropPath(x, self.drop_path, training)
 
         xavg = shortcutglobal + xavg
    
@@ -918,10 +921,10 @@ class BasicLayer(tf.keras.layers.Layer):
             self.downsample = None
             
             
-    def call(self, x):
+    def call(self, x,training):
         #print("basic layer shape: ", x.shape)
         #print("basic layer input resolution: ", self.input_resolution )
-        x = self.blocks(x)
+        x = self.blocks(x,training)
             
         
         if self.downsample is not None:
@@ -988,8 +991,8 @@ class RefiningLayer(tf.keras.layers.Layer):
         
             
             
-    def call(self, x_c):
-        x_c = self.blocks(x_c)
+    def call(self, x_c, training):
+        x_c = self.blocks(x_c,training)
         
 
         return x_c
@@ -1186,12 +1189,12 @@ class SwinTransformer(tf.keras.Model):
             layer.gamma_initializer = Constant(1.0,name=layer.name+'gamma')
 
 
-    def call(self, x):
+    def call(self, x, training):
         x = self.patch_embed(x)
         # if self.ape:
         #     x = x + self.absolute_pos_embed
         x = self.pos_drop(x)
-        x = self.basiclayers(x)
+        x = self.basiclayers(x,training)
 
         x = self.norm(x) # (B, L, C)
 
@@ -1204,7 +1207,7 @@ class SwinTransformer(tf.keras.Model):
 
         #for refining_layer in self.refining_layers.layers:
             #x,xavg = refining_layer(x, xavg)
-        x_c = self.refining_layers(x_c)
+        x_c = self.refining_layers(x_c,training)
         x = x_c[:,:-1,:]
         xavg = x_c[:,-1,:]
         xavg = tf.expand_dims(xavg,axis=1)
