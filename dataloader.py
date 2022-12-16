@@ -2,6 +2,7 @@ import string
 from numpy import array
 from pickle import load, dump, HIGHEST_PROTOCOL
 from keras.preprocessing.text import Tokenizer
+from tensorflow.keras.layers import TextVectorization
 import matplotlib.pyplot as plt
 import keras
 #from keras.backend.tensorflow_backend import set_session
@@ -51,7 +52,9 @@ import tensorflow as tf
 from tqdm import tqdm
 from tqdm import trange
 
-import h5py
+from datasetpath import image_path, text_path
+
+import string
 
 # Load file into memory
 def load_dataset(filename):
@@ -205,9 +208,9 @@ def caption_preprocessor(data):
 def load_image(image_path):
 	image = tf.io.read_file(image_path)
 	image = tf.image.decode_jpeg(image, channels=3)
-	image = tf.image.resize(image,(384,384))
-	image = tf.image.per_image_standardization(image)
-	image = preprocess_input(image)
+	image = tf.image.resize(image,(224,224))
+	#image = tf.image.per_image_standardization(image)
+	#image = preprocess_input(image)
 	#print("sdfdsf", image)
 	return image, image_path
 
@@ -218,25 +221,65 @@ def data_limiter(num,total_captions,all_img_name_vector):
   img_name_vector = img_name_vector[:num]
   return train_captions,img_name_vector
 
-def tokenize_caption(top_k,train_captions):
+
+def custom_standardization(input_data):
+	lowercase = tf.strings.lower(input_data)
+
+	pattern = r"[^A-Za-z0-9_<>]"
+
+	stripped_lowercase = tf.strings.regex_replace(lowercase, pattern," ")
+	#stripped_lowercase = tf.strings.regex_replace(stripped_lowercase, "",'')
+	# stripped_lowercase = tf.strings.regex_replace(stripped_lowercase, ".",'')
+	# stripped_lowercase = tf.strings.regex_replace(stripped_lowercase, ",",'')
+	# stripped_lowercase = tf.strings.regex_replace(stripped_lowercase, "?",'')
+	# stripped_lowercase = tf.strings.regex_replace(stripped_lowercase, ":",'')
+	# stripped_lowercase = tf.strings.regex_replace(stripped_lowercase, "-",'')
+	# stripped_lowercase = tf.strings.regex_replace(stripped_lowercase, ";",'')
+	# stripped_lowercase = tf.strings.regex_replace(stripped_lowercase, "_",'')
+	return stripped_lowercase
+
+
+def tokenize_caption(top_k,train_captions,vectorizer=None):
   # Choose the top 5000 words from the vocabulary
-  tokenizer = tf.keras.preprocessing.text.Tokenizer(num_words=top_k,oov_token="",filters='!"#$%&()*+.,-/:;=?@[\]^_`{|}~ ')
-  # oov_token: if given, it will be added to word_index and used to replace out-of-vocabulary words during text_to_sequence calls
+  #tokenizer = tf.keras.preprocessing.text.Tokenizer(num_words=top_k,oov_token="",filters='!"#$%&()*+.,-/:;=?@[\]^_`{|}~ ')
+
+	if vectorizer is None:
+		vectorizer = TextVectorization(max_tokens=top_k,standardize = custom_standardization)
+
+	  # oov_token: if given, it will be added to word_index and used to replace out-of-vocabulary words during text_to_sequence calls
+	  
+	  #tokenizer.fit_on_texts(train_captions)
+		print(train_captions[0])
+		vectorizer.adapt(train_captions)
+		print(vectorizer.get_vocabulary()[:20])
+	  #train_seqs = tokenizer.texts_to_sequences(train_captions)
+
+	  # Map '' to '0'
+	  # vectorizer.word_index[''] = 0
+	  # vectorizer.index_word[0] = ''
+
+	  # Create the tokenized vectors
+	  #train_seqs = tokenizer.texts_to_sequences(train_captions)
+
+
+
+		# for caption in tqdm(train_captions):
+		# 	train_seqs.append(vectorizer(caption))
+
+		train_seqs	= vectorizer(train_captions	)
+	
+		print(len(train_seqs[0]))
   
-  tokenizer.fit_on_texts(train_captions)
-  train_seqs = tokenizer.texts_to_sequences(train_captions)
-
-  # Map '' to '0'
-  tokenizer.word_index[''] = 0
-  tokenizer.index_word[0] = ''
-
-  # Create the tokenized vectors
-  train_seqs = tokenizer.texts_to_sequences(train_captions)
-  return train_seqs, tokenizer
+	else:
+		train_seqs = vectorizer(train_captions)
+	return train_seqs, vectorizer
 
 def save_tokenizer(tokenizer, name):
-		with open(name + '_tokenizer.pkl', 'wb') as handle:
-			dump(tokenizer, handle, protocol=HIGHEST_PROTOCOL)
+	# with open(name + '_tokenizer.pkl', 'wb') as handle:
+	# 	dump(tokenizer, handle, protocol=HIGHEST_PROTOCOL)
+	pickle.dump({'config': tokenizer.get_config(),
+			 'weights': tokenizer.get_weights()}
+			, open(name+"_tokenizer.pkl", "wb"),protocol=HIGHEST_PROTOCOL)
 
 #print(tokenizer.index_word)
 
@@ -271,7 +314,14 @@ def create_dataset(img_name_train, caption_train, batch_size, buffer_size):
   print(dataset)
   return dataset
 
-def ddd(img_dir, cap_dir, batch_size, buffer_size):
+def ddd(img_dir, cap_dir, batch_size, buffer_size, tokenizer_weights):
+
+
+	new_v = TextVectorization.from_config(tokenizer_weights['config'])
+	# You have to call `adapt` with some dummy data (BUG in Keras)
+	new_v.adapt(tf.data.Dataset.from_tensor_slices(["<start>"]))
+	new_v.set_weights(tokenizer_weights['weights'])
+
 	images = listdir(img_dir)
 	text = load_dataset(cap_dir)
 	data_frame = build_dataset(text)
@@ -286,7 +336,7 @@ def ddd(img_dir, cap_dir, batch_size, buffer_size):
 
 	vocabulary = make_vocab(data)
 
-	df_word_count = word_count(data,vocabulary)
+	#df_word_count = word_count(data,vocabulary)
 
 	vector_all_images = image_preprocessor(data, img_dir)
 
@@ -294,13 +344,15 @@ def ddd(img_dir, cap_dir, batch_size, buffer_size):
 
 	train_captions,img_name_vector = data_limiter(40000,final_captions,vector_all_images)
 
+
+
 	encoder_train = sorted(set(vector_all_images))
 	image_dataset = tf.data.Dataset.from_tensor_slices(encoder_train)
 	image_dataset = image_dataset.map(load_image).batch(1)
 
-	train_seqs , tokenizer = tokenize_caption(5000,train_captions)
+	train_seqs , tokenizer = tokenize_caption(8000,train_captions,vectorizer=new_v)
 
-	tokenizer.oov_token
+	#tokenizer.oov_token
 
 	max_length = calc_max_length(train_seqs)
 
@@ -308,7 +360,7 @@ def ddd(img_dir, cap_dir, batch_size, buffer_size):
 
 	padded_caption_vector = padding_train_sequences(train_seqs,max_length,'post')
 
-	img_name_train, img_name_test, caption_train, caption_test = train_test_split(img_name_vector,padded_caption_vector,test_size=0.2,random_state=0)
+	img_name_train, img_name_test, caption_train, caption_test = train_test_split(img_name_vector,padded_caption_vector,test_size=0.1,random_state=0)
 	img_name_train, img_name_val, caption_train, caption_val   = train_test_split(img_name_train,caption_train,test_size=0.1,random_state=0)
 	print("Training Data : X = {0},Y = {1}".format(len(img_name_train), len(caption_train)))
 	print("Test Data : X = {0},Y = {1}".format(len(img_name_test), len(caption_test)))
@@ -317,7 +369,7 @@ def ddd(img_dir, cap_dir, batch_size, buffer_size):
 	val_dataset = create_dataset(img_name_val,caption_val, batch_size, buffer_size)
 	test_dataset = create_dataset(img_name_test, caption_test, batch_size, buffer_size)
 
-	return train_dataset, val_dataset, test_dataset
+	return train_dataset, val_dataset, test_dataset, new_v
 
 
 
@@ -325,10 +377,10 @@ def ddd(img_dir, cap_dir, batch_size, buffer_size):
 
 if __name__ == '__main__':
 	# Test to load some images alongside its 5 corresponding captions
-	images_dir = 'Dataset/Flicker8k_Dataset'
+	images_dir = image_path
 	images = listdir(images_dir)
 
-	captions_dir = 'Dataset/Flickr8k_text/Flickr8k.token.txt'
+	captions_dir = text_path
 
 	print("The number of jpg flies in Flicker8k: {}".format(len(images)))
 
@@ -353,9 +405,9 @@ if __name__ == '__main__':
 
 	unique_filenames = utility_counter(data)
 
-	vocabulary = make_vocab(data)
+	#vocabulary = make_vocab(data)
 
-	df_word_count = word_count(data,vocabulary)
+	#df_word_count = word_count(data,vocabulary)
 
 	vector_all_images = image_preprocessor(data, images_dir)
 
@@ -376,7 +428,11 @@ if __name__ == '__main__':
 
 	print("Image", image_dataset)
 
-	train_seqs , tokenizer = tokenize_caption(5000,train_captions)
+	print("\n\n\n\n gfdyh\n\n\n",len(train_captions))
+
+	train_seqs , tokenizer = tokenize_caption(8000,train_captions)
+
+	voc = tokenizer.get_vocabulary()
 
 	save_tokenizer(tokenizer, 'dec')
 
@@ -384,7 +440,7 @@ if __name__ == '__main__':
 
 	print(train_seqs[:3])
 
-	tokenizer.oov_token
+	#tokenizer.oov_token
 	
 	# Calculates the max_length, which is used to store the attention weights
 	max_length = calc_max_length(train_seqs)
@@ -401,7 +457,60 @@ if __name__ == '__main__':
 	print("Training Data : X = {0},Y = {1}".format(len(img_name_train), len(caption_train)))
 	print("Test Data : X = {0},Y = {1}".format(len(img_name_test), len(caption_test)))
 
+	batch_size = 32
+	buffer_size = 10
+
+	# for img, path in tqdm(image_dataset):
+	#   batch_features = (img)
+	#   batch_features = tf.transpose(batch_features, perm=[0, 3, 1, 2])
+	#   #print(batch_features.shape)
+	#   for bf, p in zip(batch_features, path):
+	#       path_of_feature = p.numpy().decode("utf-8")
+	#       np.save(path_of_feature, bf.numpy())
+	
+	# print(batch_features.shape)
 	
 	# Creating train and test dataset
 	train_dataset = create_dataset(img_name_train,caption_train, batch_size, buffer_size)
 	test_dataset = create_dataset(img_name_test,caption_test, batch_size, buffer_size)
+
+	# for i,word in df_word_count.iterrows():
+	#   print(i, word)
+	#   print("word: ", word.word)
+
+	path_to_glove_file = './glove.6B.300d.txt'
+	embeddings_index = {}
+	with open(path_to_glove_file) as f:
+		for line in f:
+			word, coefs = line.split(maxsplit=1)
+			coefs = np.fromstring(coefs, "f", sep=" ")
+			embeddings_index[word] = coefs
+
+	print("Found %s word vectors." % len(embeddings_index))
+
+	num_tokens = (len(voc)) 
+	embedding_dim = 300
+	hits = 0
+	misses = 0
+	print(num_tokens)
+
+
+	
+	word_index = dict(zip(voc, range(len(voc))))
+
+	# Prepare embedding matrix
+	embedding_matrix = np.zeros((num_tokens, embedding_dim))
+
+	for word, i in word_index.items():
+
+		embedding_vector = embeddings_index.get(word)
+		if embedding_vector is not None:
+			# Words not found in embedding index will be all-zeros.
+			# This includes the representation for "padding" and "OOV"
+			embedding_matrix[i] = embedding_vector
+			hits += 1
+		else:
+			misses += 1
+	print("Converted %d words (%d misses)" % (hits, misses))
+	np.save("embedding_matrix", embedding_matrix)
+

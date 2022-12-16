@@ -3,6 +3,52 @@ import numpy as np
 from tensorflow import keras
 import tensorflow_probability as tfp
 from tensorflow.keras.utils import plot_model
+import matplotlib.pyplot as plt
+import matplotlib.image as img
+
+
+def tensorplot(inputtensor,channel=0,name=None):
+    check = inputtensor.numpy()
+
+    B,L,C = np.shape(check)
+    H = np.sqrt(L)
+    H = H.astype(int)
+    print(H)
+    W = H
+    check = np.reshape(check,[B,H,W,C])
+
+
+
+    check1 = check[0]
+
+    check1 = np.transpose(check1, axes=[2,0,1])
+
+    check1 = check1[channel]
+    mincheck1 = np.min(check1)
+
+    check1 = check1- mincheck1
+
+    maxcheck = np.max(check1)
+
+    check1 = check1/maxcheck
+
+    #print(check1)
+
+    check1 = np.expand_dims(check1,axis=0)
+
+    check1 = np.transpose(check1,axes=[1,2,0])
+
+
+    fig, ax1 = plt.subplots(1,1)
+
+    im = ax1.imshow(check1, interpolation='nearest')
+
+    ax1.set_title(name, color='black')
+
+
+
+    plt.imshow(check1,cmap='gray')
+    plt.show()
 
 
 def to_2tuple(x):
@@ -20,15 +66,15 @@ def DropPath(x, drop_prob: float = 0., training: bool = False, scale_by_keep: bo
     if drop_prob == 0. or not training:
         return x
     keep_prob = 1 - drop_prob
-    shape = (x.shape[0],) + (1,) * (tf.size(x) - 1)  # work with diff dim tensors, not just 2D ConvNets
-    random_tensor = tf.cast(tfp.distributions.Bernoulli(probs=keep_prob).sample(sample_shape=x.shape),tf.float32)
+    shape = (tf.shape(x)[0],) + (1,) * (tf.size(x) - 1)  # work with diff dim tensors, not just 2D ConvNets
+    random_tensor = tf.cast(tfp.distributions.Bernoulli(probs=keep_prob).sample(sample_shape=tf.shape(x)),tf.float32)
     if keep_prob > 0.0 and scale_by_keep:
         random_tensor = tf.cast(random_tensor/keep_prob,tf.float32)
 
     return x * random_tensor
 
 
-def window_partition(x, window_size=6):
+def window_partition(x, window_size=7):
     """
     Args:
         x: (B, H, W, C)
@@ -136,6 +182,8 @@ class WindowAttention(tf.keras.layers.Layer):
         self.num_heads = num_heads
         head_dim = dim // num_heads
         self.scale = qk_scale or head_dim ** -0.5
+
+        self._name = name
         
         # Parameter table of relative position bias: B_hat from the paper
         # (2M-1, 2M-1, num_heads) or (2*Wh-1 * 2*W-1, num_heads)
@@ -179,6 +227,7 @@ class WindowAttention(tf.keras.layers.Layer):
         self.proj_drop = tf.keras.layers.Dropout(proj_drop,name=dropout2_name)
         
         truncname = name+'trunc'
+        #self.relative_position_bias_table = 
         tf.random.truncated_normal(self.relative_position_bias_table.shape, stddev=.02,name=truncname)
         # self.softmax = tf.keras.activations.softmax(axis=-1)
         
@@ -255,6 +304,16 @@ class WindowAttention(tf.keras.layers.Layer):
             attn = tf.keras.activations.softmax(attn)
             
         attn = tf.keras.activations.softmax(attn)
+
+        # if self._name == 'BasicLayer0SWinTransformer0window':
+        #     Bplot,Cplot,Wplot,Hplot = np.shape(attn)
+        #     print("prev_attn: ", np.shape(attn))
+        #     Bplot = tf.shape(attn)[0]
+        #     checkattn = tf.reshape(attn,[Bplot,Cplot,Hplot*Wplot])
+        #     checkattn = tf.transpose(checkattn,perm=[0,2,1])
+        #     print("attn", checkattn.shape)
+        #     tensorplot(checkattn,0,name='attention score')
+            
         
         # attn = (nW*B, num_heads, N, N)
         # v = (B_, num_heads, N, C // num_heads). B_ = nW*B
@@ -307,7 +366,7 @@ class WindowAttention2(tf.keras.layers.Layer):
         coords = tf.stack(tf.meshgrid(coords_h, coords_w)) # (2, M, M) or (2, Wh, Ww)
 
         coords_flatten = tf.reshape(coords, [2, window_size[0]*window_size[1]]) # (2, M^2)
-        global_coord = tf.constant([[0],[0]])
+        global_coord = tf.constant([[-1],[-1]])
 
 
         coords_flatten1 = tf.concat([coords_flatten,global_coord],axis=1)
@@ -512,7 +571,7 @@ class SwinTransformerBlock(tf.keras.layers.Layer):
         norm_layer (nn.Module, optional): NOrmalization layer. Default: nn.LayerNorm
     """
     
-    def __init__(self, dim, input_resolution, num_heads, window_size=6, shift_size=0,
+    def __init__(self, dim, input_resolution, num_heads, window_size=7, shift_size=0,
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0., drop_path=0.,
                  act_layer=tf.keras.activations.gelu, norm_layer=tf.keras.layers.LayerNormalization,
                  name=None):
@@ -638,6 +697,8 @@ class SwinTransformerBlock(tf.keras.layers.Layer):
     
         x = x + DropPath(self.mlp(self.norm2(x)), self.drop_path, training = training)
         # x = x + (self.mlp(self.norm2(x)))
+
+
         
         return x
 
@@ -662,7 +723,7 @@ class RefiningEncoderBlock(tf.keras.layers.Layer):
         norm_layer (nn.Module, optional): NOrmalization layer. Default: nn.LayerNorm
     """
     
-    def __init__(self, dim, input_resolution, num_heads, window_size=6, shift_size=0,
+    def __init__(self, dim, input_resolution, num_heads, window_size=7, shift_size=0,
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0., drop_path=0.,
                  act_layer=tf.keras.activations.gelu, norm_layer=tf.keras.layers.LayerNormalization,
                  name=None):
@@ -909,7 +970,7 @@ class BasicLayer(tf.keras.layers.Layer):
                                  qkv_bias=qkv_bias, qk_scale=qk_scale,
                                  drop=drop, attn_drop=attn_drop,
                                  drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
-                                 norm_layer=norm_layer, name='SWinTransformer' + str(i)
+                                 norm_layer=norm_layer, name=self._name+'SWinTransformer' + str(i)
                                 ) for i in range(depth)]
 
         self.blocks = tf.keras.Sequential(self.blocks)
@@ -926,6 +987,8 @@ class BasicLayer(tf.keras.layers.Layer):
         #print("basic layer input resolution: ", self.input_resolution )
         x = self.blocks(x,training)
             
+        # if self.downsample is not None:
+            # tensorplot(x,10)
         
         if self.downsample is not None:
             x = self.downsample(x)
@@ -1009,7 +1072,7 @@ class PatchEmbed(tf.keras.layers.Layer):
         norm_layer (nn.Module, optional): Normalization layer (Default: None)
     """
     
-    def __init__(self, img_size=384, patch_size=4, in_chans=3, embed_dim=64, norm_layer=None,name=None):
+    def __init__(self, img_size=224, patch_size=4, in_chans=3, embed_dim=64, norm_layer=None,name=None):
         super(PatchEmbed,self).__init__(name=name)
         #self.name=name
         img_size = to_2tuple(img_size) # (img_size, img_size) to_2tuple simply convert t to (t,t)
@@ -1095,9 +1158,9 @@ class SwinTransformer(tf.keras.Model):
         use_checkpoint (bool): Whether to use checkpointing to save memory (Default: False)
     """
     
-    def __init__(self, img_size=384, patch_size=4, in_chans=3, num_classes=1000,
-                 embed_dim=64, depths=[2, 2, 6, 2], num_refining_layers=3,num_heads=[4, 8, 16, 32],
-                 window_size=6, mlp_ratio=4., qkv_bias=True, qk_scale=None,
+    def __init__(self, img_size=224, patch_size=4, in_chans=3, num_classes=512,
+                 embed_dim=96, depths=[2, 2, 6, 2], num_refining_layers=3,num_heads=[3, 6, 12, 24],
+                 window_size=7, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=tf.keras.layers.LayerNormalization, ape=False, patch_norm=True,
                  use_checkpoint=False,name=None, **kwargs):
@@ -1150,43 +1213,43 @@ class SwinTransformer(tf.keras.Model):
 
         self.basiclayers = tf.keras.Sequential(self.basiclayers)
 
-        self.refining_layers= []
+        # self.refining_layers= []
 
 
-        for i_layer in range(self.num_refining_layers):
-            self.refining_layers.append(RefiningLayer(
-            dim=int(embed_dim * 2 ** (self.num_layers-1)),
-            input_resolution=(
-                patches_resolution[0] // (2 ** (self.num_layers-1)), # After patch-merging layer, patches_resolution(H, W) is halved
-                patches_resolution[1] // (2 ** (self.num_layers-1)),
-                                ),
-            depth=2,
-            num_heads=4,
-            window_size=window_size,
-            mlp_ratio=self.mlp_ratio,
-            qkv_bias=qkv_bias, qk_scale=qk_scale,
-            drop=drop_rate, attn_drop=attn_drop_rate,
-            drop_path=0,
-            norm_layer=norm_layer,
-            downsample= None, # No patch merging at the last stage
-            use_checkpoint=use_checkpoint, name='RefiningLayer' + str(i_layer)
-            ))
+        # for i_layer in range(self.num_refining_layers):
+        #     self.refining_layers.append(RefiningLayer(
+        #     dim=int(embed_dim * 2 ** (self.num_layers-1)),
+        #     input_resolution=(
+        #         patches_resolution[0] // (2 ** (self.num_layers-1)), # After patch-merging layer, patches_resolution(H, W) is halved
+        #         patches_resolution[1] // (2 ** (self.num_layers-1)),
+        #                         ),
+        #     depth=2,
+        #     num_heads=4,
+        #     window_size=window_size,
+        #     mlp_ratio=self.mlp_ratio,
+        #     qkv_bias=qkv_bias, qk_scale=qk_scale,
+        #     drop=drop_rate, attn_drop=attn_drop_rate,
+        #     drop_path=0,
+        #     norm_layer=norm_layer,
+        #     downsample= None, # No patch merging at the last stage
+        #     use_checkpoint=use_checkpoint, name='RefiningLayer' + str(i_layer)
+        #     ))
 
-        self.refining_layers = tf.keras.Sequential(self.refining_layers)    
+        # self.refining_layers = tf.keras.Sequential(self.refining_layers)    
         self.norm = norm_layer()
         self.concatpool = PoolConcat()
         
         # Classification Head
         self.head = tf.keras.layers.Dense(num_classes) if num_classes > 0 else tf.identity
 
-    def build(self, layer):
-        if isinstance(layer, tf.keras.layers.Dense):
-            layer.kernel_initializer = TruncatedNormal(stddev=0.02,name=layer.name+'dense')
-            if layer.bias is not None:
-                layer.bias_initializer = Constant(0,name=layer.name+'bias')
-        elif isinstance(layer, tf.keras.layers.LayerNormalization):
-            layer.bias_initializer = Constant(0,name=layer.name+'beta')
-            layer.gamma_initializer = Constant(1.0,name=layer.name+'gamma')
+    # def build(self, layer):
+    #     if isinstance(layer, tf.keras.layers.Dense):
+    #         layer.kernel_initializer = TruncatedNormal(stddev=0.02,name=layer.name+'dense')
+    #         if layer.bias is not None:
+    #             layer.bias_initializer = Constant(0,name=layer.name+'bias')
+    #     elif isinstance(layer, tf.keras.layers.LayerNormalization):
+    #         layer.bias_initializer = Constant(0,name=layer.name+'beta')
+    #         layer.gamma_initializer = Constant(1.0,name=layer.name+'gamma')
 
 
     def call(self, x, training):
@@ -1198,6 +1261,8 @@ class SwinTransformer(tf.keras.Model):
 
         x = self.norm(x) # (B, L, C)
 
+        #tensorplot(x,0,name='SWIN output pre refining')
+
         x_c = self.concatpool(x)
         #xavg = tf.transpose(x, perm=[0, 2, 1])
         #xavg = self.avgpool(xavg) # (B, C, 1)
@@ -1205,17 +1270,18 @@ class SwinTransformer(tf.keras.Model):
         #xavg = tf.transpose(xavg, perm = [0,2,1])
         #x_c = tf.concat([x,xavg],axis=1)
 
-        #for refining_layer in self.refining_layers.layers:
-            #x,xavg = refining_layer(x, xavg)
-        x_c = self.refining_layers(x_c,training)
+        #x_c = self.refining_layers(x_c,training)
         x = x_c[:,:-1,:]
         xavg = x_c[:,-1,:]
         xavg = tf.expand_dims(xavg,axis=1)
+
+        x = self.head(x)
+        xavg = self.head(xavg)
         return x, xavg
 
     def summary(self, line_length=None, positions=None, print_fn=None):
 
-        encoder_input = keras.Input(shape=(3,384,384), name="original_img")
+        encoder_input = keras.Input(shape=(3,224,224), name="original_img")
 
         model = SwinTransformer()
 
@@ -1298,6 +1364,15 @@ class SwinTransformer(tf.keras.Model):
             merged_summary_str.add(refining_layer_model)
     
             merged_input = merged_output
+
+        output1 = merged_input[:,:-1,:]
+        #output_global = merged_input[:,-1,:]
+        #output_global = tf.expand_dims(output_global,axis=1)
+
+        output1 = self.head(output1)
+
+        final_dense_layer = keras.Model(merged_input,output1,name='Dense_end')
+        merged_summary_str.add(final_dense_layer)
         
 
         merged_summary_str._name = "SWinModel_Total_Verbose"
@@ -1320,7 +1395,7 @@ class SwinTransformer(tf.keras.Model):
 if __name__ == '__main__':
 
 
-    dummy = np.random.rand(1, 3, 384, 384)
+    dummy = np.random.rand(1, 3, 224, 224)
     model = SwinTransformer()
 
     model.summary()
@@ -1328,7 +1403,7 @@ if __name__ == '__main__':
     output = model(dummy)
     print(output[0].shape)
 
-    #encoder_input = keras.Input(shape=(3,384,384), name="original_img")
+ 
 
     #windowmodel = BasicLayer( 64, [96,96], 1, 4, 6,
                 # mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0.,
@@ -1336,38 +1411,5 @@ if __name__ == '__main__':
 
     #dummy = np.random.rand(2,9216,64)
 
-    windowmodel = model
-
-
-
-
-    
-
-    mse = tf.keras.losses.MeanSquaredError(reduction=tf.keras.losses.Reduction.SUM)
-    optimizer = tf.keras.optimizers.Adam()
-    #patchembed = keras.Model(encoder_input, encoder_output, name="patchembed")
-    with tf.GradientTape() as tape:
- 
-        # Run the forward pass of the model to generate a prediction
-        output,outputavg = windowmodel(dummy)
-        print(output.shape)
-        target = tf.random.normal(tf.shape(output))
- 
-        # Compute the training loss
-        loss = mse(target, output)
-        print("\nLoss\n", loss)
-        # Compute the training accuracy
- 
-    # Retrieve gradients of the trainable variables with respect to the training loss
-    gradients = tape.gradient(loss, windowmodel.trainable_weights)
- 
-    # Update the values of the trainable variables by gradient descent
-    optimizer.apply_gradients(zip(gradients, windowmodel.trainable_weights))
-
-
-
-    #output = patchembed(dummy)
-    
-
-
+   
  

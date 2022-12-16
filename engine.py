@@ -3,8 +3,9 @@ from dataloader import *
 from transformer import TransformerModel
 import tensorflow as tf
 from tensorflow import cast, float32, int32
-
-
+#from google.colab import files
+import shutil
+from datasetpath import image_path, text_path
 
 train_loss = Mean(name='train_loss')
 train_accuracy = Mean(name='train_accuracy')
@@ -12,7 +13,7 @@ val_loss = Mean(name='val_loss')
 
 
 # Defining the loss function
-#@tf.function
+@tf.function
 def loss_fcn(target, prediction):
 	# Create mask so that the zero padding values are not included in the computation of loss
 	padding_mask = math.logical_not(equal(target, 0))
@@ -25,7 +26,7 @@ def loss_fcn(target, prediction):
 	return reduce_sum(loss) / reduce_sum(padding_mask)
 
 # Defining the accuracy function
-#@tf.function
+@tf.function
 def accuracy_fcn(target, prediction):
 	# Create mask so that the zero padding values are not included in the computation of accuracy
 	padding_mask = math.logical_not(equal(target, 0))
@@ -43,7 +44,7 @@ def accuracy_fcn(target, prediction):
 	return reduce_sum(accuracy) / reduce_sum(padding_mask)
 
 # Speeding up the training process
-#@tf.function
+@tf.function
 def train_step(inputs, decoder_output, training_model, optimizer, train_loss, train_accuracy):
 	with GradientTape() as tape:
  
@@ -67,17 +68,19 @@ def train_step(inputs, decoder_output, training_model, optimizer, train_loss, tr
 
 # Implementing a learning rate scheduler
 class LRScheduler(LearningRateSchedule):
-	def __init__(self, d_model, warmup_steps=4000, **kwargs):
+	def __init__(self, d_model, iterations=0, warmup_steps=4000, **kwargs):
 		super(LRScheduler, self).__init__(**kwargs)
  
 		self.d_model = cast(d_model, float32)
 		self.warmup_steps = warmup_steps
+		self.steps = iterations
  
 	def __call__(self, step_num):
  
 		# Linearly increasing the learning rate for the first warmup_steps, and decreasing it thereafter
-		arg1 = step_num ** -0.5
-		arg2 = step_num * (self.warmup_steps ** -1.5)
+		step_num += self.steps
+		arg1 = 0.25*step_num ** -0.5
+		arg2 = 0.25*step_num * (self.warmup_steps ** -1.5)
  
 		return (self.d_model ** -0.5) * math.minimum(arg1, arg2)
 
@@ -88,6 +91,10 @@ class LRScheduler(LearningRateSchedule):
 	}
 		return config
 
+@tf.function
+def valstep(inputs,model):
+	return model(inputs,training=False)
+
 
 
 
@@ -97,11 +104,13 @@ if __name__ == '__main__':
 	train_loss_dict = {}
 	val_loss_dict = {}
 
-	images_dir = 'Dataset/Flicker8k_Dataset'
+	images_dir = image_path
 
-	captions_dir = 'Dataset/Flickr8k_text/Flickr8k.token.txt'
-
-	train_dataset, val_dataset, test_dataset = ddd(images_dir, captions_dir, 1, 10)
+	captions_dir = text_path
+	batch_size = 2
+	buffer_size = 100
+	dec_token_weights_config = pickle.load(open("dec_tokenizer.pkl", "rb"))
+	train_dataset, val_dataset, test_dataset, vectorizer = ddd(images_dir, captions_dir, batch_size, buffer_size,dec_token_weights_config)
 
 	# Define the model parameters
 	h = 8  # Number of self-attention heads
@@ -112,7 +121,7 @@ if __name__ == '__main__':
 	n = 6  # Number of layers in the encoder stack
 	
 	# Define the training parameters
-	epochs = 10
+	epochs = 20
 	batch_size = 1
 	beta_1 = 0.9
 	beta_2 = 0.98
@@ -120,19 +129,21 @@ if __name__ == '__main__':
 	dropout_rate = 0.1
 
 	# Instantiate an Adam optimizer
-	optimizer = Adam(LRScheduler(d_model), beta_1, beta_2, epsilon)
+	optimizer = Adam(LRScheduler(d_model,48000), beta_1, beta_2, epsilon)
 	
 	# Create model
-	dec_vocab_size = 8918
+	dec_vocab_size = 8000
 	dec_seq_length = 39
-	enc_vocab_size = 8918
+	enc_vocab_size = 8000
 	enc_seq_length = 39
 
-	training_model = TransformerModel(dec_vocab_size, dec_seq_length, h, d_k, d_v, d_model, d_ff, n, dropout_rate,name='SWINtransformer')#.build_graph(False)
+	training_model = TransformerModel(dec_vocab_size, dec_seq_length, h, d_k, d_v, d_model, d_ff, n, dropout_rate,name='SWINtransformer').build_graph(True)
+	print(training_model.summary())
 	training_model.compile(loss=loss_fcn, optimizer=optimizer)
+	training_model.load_weights('./checkpoints/my_checkpoint')
 
 
-	pbar = tqdm(enumerate(train_dataset))
+
 	for epoch in (range(epochs)):
 	
 		train_loss.reset_states()
@@ -140,30 +151,48 @@ if __name__ == '__main__':
 		val_loss.reset_states()
 
 		# Iterate over the dataset batches
-		for (step, (train_batchX, train_batchY)) in pbar:
+		for (step, (train_batchX, train_batchY)) in tqdm(enumerate(train_dataset)):
 
-			
 			train_batchX = tf.divide(train_batchX, 255.0)
 			encoder_input = train_batchX
 
 			decoder_input = cast(train_batchY[:, :-1], int32)
 			decoder_output = cast(train_batchY[:, 1:], int32)
-
-			
 			
 			inputs = [encoder_input,decoder_input]
 
-	
 			train_step(inputs, decoder_output, training_model, optimizer, train_loss, train_accuracy)
-			pbar.set_postfix({'Epoch, Step, Loss, Accuracy ': [epoch + 1,step,train_loss.result().numpy(),train_accuracy.result().numpy() ]})	
-			if (step+1) % 50 == 0:
-				pass
-				#tqdm.write("Saved checkpoint at epoch %d" % (epoch + 1))
+			
+			if (step+1) % 10 == 0:
+				print('Epoch, Step, Loss, Accuracy ', epoch + 1,step,train_loss.result().numpy(),train_accuracy.result().numpy())
+
+			if (step+1) % 750 == 0:
+				training_model.save_weights('./checkpoints/my_checkpoint')
+		
+				#gdrive_link = '/content/gdrive/MyDrive/ckpt'
+				#c1 = '/content/checkpoints/my_checkpoint.data-00000-of-00001'
+				#c2 = '/content/checkpoints/checkpoint'
+				#c3 = '/content/checkpoints/my_checkpoint.index'
+				#shutil.copy(c1, gdrive_link)
+				#shutil.copy(c2, gdrive_link)
+				#shutil.copy(c3, gdrive_link)
+				#print('Epoch, Step, Loss, Accuracy ', epoch + 1,step,train_loss.result().numpy(),train_accuracy.result().numpy(),end='')
+				#train_loss_dict[epoch] = train_loss.result()
+				#val_loss_dict[epoch] = val_loss.result()
+				#with open('./train_loss.pkl', 'wb') as file:
+				#	dump(train_loss_dict, file)
+				#with open('./val_loss.pkl', 'wb') as file:    
+				#	dump(val_loss_dict, file)     
+
+				#gdrive_link2 = '/content/gdrive/MyDrive/losses_pkl'
+
+				#shutil.copy('./val_loss.pkl', gdrive_link2)     
+				#shutil.copy('./train_loss.pkl', gdrive_link2)                                                                                                                    
 				#print(training_model.save_spec() is None)
 				#training_model.save_weights('./checkpoints/my_checkpoint')
 
 
-		for valstep, (val_batchX, val_batchY) in enumerate(val_dataset):
+		for  (val_batchX, val_batchY) in tqdm((val_dataset)):
 
 			# Define the encoder and decoder inputs, and the decoder output
 			val_batchX = tf.divide(val_batchX, 255.0)
@@ -172,26 +201,36 @@ if __name__ == '__main__':
 
 			# Generate a prediction
 			inputs = [val_batchX,decoder_input]
-			prediction = training_model(inputs, training=False)
+			prediction = valstep(inputs,training_model)#(inputs, training=False)
 
 
 			# Compute the validation loss
 			loss = loss_fcn(decoder_output, prediction)
 			val_loss(loss)
 
-	
+
+
 		# Save a checkpoint after every five epochs
-		if (epoch + 1) % 5 == 0:
+		if (epoch + 1) % 1 == 0:
 			training_model.save_weights('./checkpoints/my_checkpoint')
-			tqdm.write("Saved checkpoint at epoch %d" % (epoch + 1))
+			#gdrive_link = '/content/gdrive/MyDrive/ckpt'  
+			#c1 = '/content/checkpoints/my_checkpoint.data-00000-of-00001'
+			#c2 = '/content/checkpoints/checkpoint'                
+			#c3 = '/content/checkpoints/my_checkpoint.index'	
+			#shutil.copy(c1, gdrive_link)   
+			#shutil.copy(c2, gdrive_link)
+			#shutil.copy(c3, gdrive_link)   
+			print("Saved checkpoint at epoch" , (epoch + 1))
 			train_loss_dict[epoch] = train_loss.result()
 			val_loss_dict[epoch] = val_loss.result()
+			with open('./train_loss.pkl', 'wb') as file:
+				dump(train_loss_dict, file)      
+			with open('./val_loss.pkl', 'wb') as file:   
+				dump(val_loss_dict, file)         
 
-
-
-	with open('./train_loss.pkl', 'wb') as file:
-		dump(train_loss_dict, file)
+#	with open('./train_loss.pkl', 'wb') as file:
+#		dump(train_loss_dict, file)
 
 # Save the validation loss values
-	with open('./val_loss.pkl', 'wb') as file:
-		dump(val_loss_dict, file)
+#	with open('./val_loss.pkl', 'wb') as file:
+#		dump(val_loss_dict, file)

@@ -10,14 +10,23 @@ from keras.applications.vgg16 import preprocess_input
 from tensorflow.keras.optimizers.schedules import LearningRateSchedule
 from tensorflow.keras.optimizers import Adam
 from tensorflow import cast
+from datasetpath import image_path, text_path
+from dataloader import ddd
+
+import sys, time, os, warnings 
+warnings.filterwarnings("ignore")
 
 def load_image(image_path):
     image = tf.io.read_file(image_path)
     image = tf.image.decode_jpeg(image, channels=3)
-    image = tf.image.resize(image,(384,384))
-    image = tf.image.per_image_standardization(image)
-    image = preprocess_input(image)
-    #print("sdfdsf", image)
+    image = tf.image.resize(image,(224,224))
+    #image = tf.image.per_image_standardization(image)
+    #image = preprocess_input(image)
+    image = tf.divide(image,255.0)
+
+
+    print(image)
+
     return image, image_path
 
 def accuracy_fcn(target, prediction):
@@ -75,7 +84,7 @@ optimizer = Adam(LRScheduler(d_model), beta_1, beta_2, epsilon)
 
 
 
-dec_vocab_size = 8918
+dec_vocab_size = 8000
 dec_seq_length = 39
 
 
@@ -90,7 +99,7 @@ dropout_rate = 0.0
 
 inferencing_model = TransformerModel(dec_vocab_size, dec_seq_length, h, d_k, d_v, d_model, d_ff, n, dropout_rate,name='SWINtransformer').build_graph(False)
 inferencing_model.compile(loss=loss_fcn, optimizer=optimizer)
-inferencing_model.load_weights('./checkpoints/my_checkpoint')
+
 
 #checkpoint = tf.train.Checkpoint()
 
@@ -98,7 +107,14 @@ inferencing_model.load_weights('./checkpoints/my_checkpoint')
 #checkpoint.restore(tf.train.latest_checkpoint('weights'))
 
 
+def custom_standardization(input_data):
+    lowercase = tf.strings.lower(input_data)
 
+    pattern = r"[^A-Za-z0-9_<>]"
+
+    stripped_lowercase = tf.strings.regex_replace(lowercase, pattern," ")
+
+    return stripped_lowercase
 
 class Translate(Module):
     def __init__(self, inferencing_model, **kwargs):
@@ -106,8 +122,19 @@ class Translate(Module):
         self.transformer = inferencing_model
  
     def load_tokenizer(self, name):
-        with open(name, 'rb') as handle:
-            return load(handle)
+        images_dir = image_path
+
+        captions_dir = text_path
+        batch_size = 2
+        buffer_size = 100
+        dec_token_weights_config = load(open("dec_tokenizer.pkl", "rb"))
+        print(images_dir)
+        train_dataset, val_dataset, test_dataset, vectorizer = ddd(images_dir, captions_dir, batch_size, buffer_size,dec_token_weights_config)
+
+        
+        return vectorizer
+
+
     def padding_train_sequences(train_seqs, max_length, padding_type):
         cap_vector = tf.keras.preprocessing.sequence.pad_sequences(train_seqs, padding=padding_type,maxlen=max_length)
         return cap_vector
@@ -123,12 +150,12 @@ class Translate(Module):
 
  
         # Prepare the output <START> token by tokenizing, and converting to tensor
-        output_start = dec_tokenizer.texts_to_sequences(["<start>"])
-        output_start = convert_to_tensor(output_start[0], dtype=tf.int32)
+        output_start = dec_tokenizer("<start>")
+        output_start = cast(output_start, dtype=tf.int32)
  
         # Prepare the output <EOS> token by tokenizing, and converting to tensor
-        output_end = dec_tokenizer.texts_to_sequences(["<end>"])
-        output_end = convert_to_tensor(output_end[0], dtype=tf.int32)
+        output_end = dec_tokenizer("<end>")
+        output_end = cast(output_end, dtype=tf.int32)
  
         # Prepare the output array of dynamic size
         decoder_output = TensorArray(dtype=int64, size=0, dynamic_size=True)
@@ -136,7 +163,7 @@ class Translate(Module):
         #decoder_output = decoder_output.write(0, output_start)
         decoder_input = decoder_input[0].assign(output_start)
         decoder_input_ = tf.expand_dims(decoder_input, axis=0)
-        for i in range(dec_seq_length-1):
+        for i in range(38):
  
 
             prediction = self.transformer([sentence, decoder_input_], training=False)
@@ -171,7 +198,7 @@ class Translate(Module):
  
             key = output[i]
             #print(dec_tokenizer.index_word[key])
-            output_str.append(dec_tokenizer.index_word[key])
+            output_str.append(dec_tokenizer.get_vocabulary()[key])
             if(key == output_end):
                 break
  
@@ -187,17 +214,31 @@ class Translate(Module):
 #inferencing_model = tf.keras.models.load_model('saved_model/my_model')
 
 #inferencing_model.load_weights('weights/wghts1.ckpt')
-image_path = 'Dataset/Flicker8k_Dataset/3637013_c675de7705.jpg'
+image_file = 'Dataset/Flicker8k_Dataset/69189650_6687da7280.jpg'
 
-image, image_path = load_image(image_path) 
+image, image_file = load_image(image_file) 
 # Create a new instance of the 'Translate' class
 image = tf.expand_dims(image,axis=0)
-image = tf.cast(image,tf.float32)
 image = tf.transpose(image,perm=[0,3,1,2])
 translator = Translate(inferencing_model)
 
 
  
 # Translate the input sentence
+
+#print(translator(image))
+
+inferencing_model.load_weights('./checkpoints/my_checkpoint')
+
+#print(translator(image))
+
+
+image_file = 'Dataset/Flicker8k_Dataset/69189650_6687da7280.jpg'
+
+image, image_file = load_image(image_file) 
+# Create a new instance of the 'Translate' class
+image = tf.expand_dims(image,axis=0)
+image = tf.transpose(image,perm=[0,3,1,2])
+translator = Translate(inferencing_model)
 
 print(translator(image))

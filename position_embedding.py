@@ -1,6 +1,6 @@
 import tensorflow as tf
 from tensorflow import convert_to_tensor, string
-from tensorflow.keras.layers import TextVectorization, Embedding, Layer
+from tensorflow.keras.layers import TextVectorization, Embedding, Layer, Dense
 from tensorflow.data import Dataset
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,18 +9,21 @@ import matplotlib.pyplot as plt
 class PositionEmbeddingFixedWeights(Layer):
     def __init__(self, sequence_length, vocab_size, output_dim,name=None, **kwargs):
         super(PositionEmbeddingFixedWeights, self).__init__(name=name,**kwargs)
-        word_embedding_matrix = self.get_position_encoding(vocab_size, output_dim)   
-        position_embedding_matrix = self.get_position_encoding(sequence_length, output_dim)                                          
+        word_embedding_matrix = self.get_glove_encoding(vocab_size, 300)   
+        position_embedding_matrix = self.get_position_encoding(sequence_length, 300)                                          
         self.word_embedding_layer = Embedding(
-            input_dim=vocab_size, output_dim=output_dim,
+            input_dim=vocab_size, output_dim=300,
             weights=[word_embedding_matrix],
             trainable=False,name=name+'word_embeddings'
         )
+
         self.position_embedding_layer = Embedding(
-            input_dim=sequence_length, output_dim=output_dim,
+            input_dim=sequence_length, output_dim=300,
             weights=[position_embedding_matrix],
             trainable=False,name=name+'position_embeddings'
         )
+
+        self.Dense_embed = Dense(output_dim)
              
     def get_position_encoding(self, seq_len, d, n=10000):
         P = np.zeros((seq_len, d))
@@ -30,10 +33,15 @@ class PositionEmbeddingFixedWeights(Layer):
                 P[k, 2*i] = np.sin(k/denominator)
                 P[k, 2*i+1] = np.cos(k/denominator)
         return P
+
+    def get_glove_encoding(self, seq_len, d, n=10000):
+        E = np.load("embedding_matrix.npy")
+        return E
  
  
     def call(self, inputs):        
         position_indices = tf.range(tf.shape(inputs)[-1])
         embedded_words = self.word_embedding_layer(inputs)
+        #embedded_words = self.word_embedding_dense(embedded_words)
         embedded_indices = self.position_embedding_layer(position_indices)
-        return embedded_words + embedded_indices
+        return self.Dense_embed(embedded_words + embedded_indices)

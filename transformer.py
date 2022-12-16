@@ -4,6 +4,9 @@ from tensorflow.keras import Model
 from tensorflow.keras.layers import Dense
 from SWINblock import SwinTransformer
 import tensorflow as tf
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.image as img
  
  
 class TransformerModel(Model):
@@ -39,7 +42,7 @@ class TransformerModel(Model):
 
     def build_graph(self,training):
         input_layer1 = tf.keras.Input(shape=(self.dec_seq_length-1))
-        input_layer2 = tf.keras.Input(shape=(3,384,384))
+        input_layer2 = tf.keras.Input(shape=(3,224,224))
         return Model(inputs=[input_layer2,input_layer1], outputs=self.call([input_layer2, input_layer1],training))
 
     def build(self, layer):
@@ -51,6 +54,50 @@ class TransformerModel(Model):
         elif isinstance(layer, tf.keras.layers.LayerNormalization):
             layer.bias_initializer = Constant(0,name=layer.name+'beta')
             layer.gamma_initializer = Constant(1.0,name=layer.name+'gamma')
+
+    def tensorplot(self,inputtensor,channel=0,name=None):
+        check = inputtensor.numpy()
+
+        B,L,C = np.shape(check)
+        H = np.sqrt(L)
+        H = H.astype(int)
+        W = H
+        check = np.reshape(check,[1,H,W,C])
+
+
+
+        check1 = check[0]
+
+        check1 = np.transpose(check1, axes=[2,0,1])
+
+        check1 = check1[channel]
+        mincheck1 = np.min(check1)
+
+        check1 = check1- mincheck1
+
+        maxcheck = np.max(check1)
+
+        check1 = check1/maxcheck
+
+        #print(check1)
+
+        check1 = np.expand_dims(check1,axis=0)
+
+        check1 = np.transpose(check1,axes=[1,2,0])
+
+
+        fig, ax1 = plt.subplots(1,1)
+
+        im = ax1.imshow(check1, interpolation='nearest')
+
+        ax1.set_title(name, color='black')
+
+
+
+        plt.imshow(check1,cmap='gray')
+        plt.show()
+
+
  
     def call(self, inputs, training):
 
@@ -66,10 +113,14 @@ class TransformerModel(Model):
  
         # Feed the input into the encoder
         encoder_output, encoder_output_global = self.encoder(encoder_input,training)
+
+        #self.tensorplot(encoder_output,channel=0,name='Encoder output (post refining layer)')
+        #print("enc output: ", encoder_output)
+        #print(" glob output: ", encoder_output_global)
  
 
 
-        # Feed the encoder output into the decoder
+        # Feed the encoder output into traininghe decoder
         decoder_output = self.decoder(decoder_input, encoder_output, dec_in_lookahead_mask, encoder_output_global, training)
  
         # Pass the decoder output through a final dense layer
