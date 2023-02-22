@@ -79,8 +79,8 @@ class LRScheduler(LearningRateSchedule):
  
 		# Linearly increasing the learning rate for the first warmup_steps, and decreasing it thereafter
 		step_num += self.steps
-		arg1 = 0.25*step_num ** -0.5
-		arg2 = 0.25*step_num * (self.warmup_steps ** -1.5)
+		arg1 = 0.5*step_num ** -0.5
+		arg2 = 0.5*step_num * (self.warmup_steps ** -1.5)
  
 		return (self.d_model ** -0.5) * math.minimum(arg1, arg2)
 
@@ -107,7 +107,7 @@ if __name__ == '__main__':
 	images_dir = image_path
 
 	captions_dir = text_path
-	batch_size = 2
+	batch_size = 4
 	buffer_size = 100
 	dec_token_weights_config = pickle.load(open("dec_tokenizer.pkl", "rb"))
 	train_dataset, val_dataset, test_dataset, vectorizer = ddd(images_dir, captions_dir, batch_size, buffer_size,dec_token_weights_config)
@@ -121,7 +121,7 @@ if __name__ == '__main__':
 	n = 6  # Number of layers in the encoder stack
 	
 	# Define the training parameters
-	epochs = 20
+	epochs = 200
 	batch_size = 1
 	beta_1 = 0.9
 	beta_2 = 0.98
@@ -129,7 +129,7 @@ if __name__ == '__main__':
 	dropout_rate = 0.1
 
 	# Instantiate an Adam optimizer
-	optimizer = Adam(LRScheduler(d_model,48000), beta_1, beta_2, epsilon)
+	optimizer = Adam(LRScheduler(d_model,240000), beta_1, beta_2, epsilon)
 	
 	# Create model
 	dec_vocab_size = 8000
@@ -168,6 +168,8 @@ if __name__ == '__main__':
 
 			if (step+1) % 750 == 0:
 				training_model.save_weights('./checkpoints/my_checkpoint')
+
+				print('Epoch, Step, Loss, Accuracy ', epoch + 1,step,train_loss.result().numpy(),train_accuracy.result().numpy())
 		
 				#gdrive_link = '/content/gdrive/MyDrive/ckpt'
 				#c1 = '/content/checkpoints/my_checkpoint.data-00000-of-00001'
@@ -207,6 +209,8 @@ if __name__ == '__main__':
 			# Compute the validation loss
 			loss = loss_fcn(decoder_output, prediction)
 			val_loss(loss)
+
+		print(val_loss)
 
 
 

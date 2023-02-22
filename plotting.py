@@ -7,8 +7,8 @@ import numpy as np
 train_loss = load(open('train_loss.pkl', 'rb'))
 val_loss = load(open('val_loss.pkl', 'rb'))
 
-train_loss_prev = load(open('train_loss__1.pkl','rb'))
-val_loss_prev = load(open('val_loss__1.pkl', 'rb'))
+train_loss_prev = load(open('train_loss1.pkl','rb'))
+val_loss_prev = load(open('val_loss1.pkl', 'rb'))
  
 # Retrieve each dictionary's values
 train_values = train_loss.values()

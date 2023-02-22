@@ -7,3 +7,5 @@ __pycache__/
 weights/
 saved_model/
 checkpoints/
+glove.6B.300d.txt
+*.pyc
